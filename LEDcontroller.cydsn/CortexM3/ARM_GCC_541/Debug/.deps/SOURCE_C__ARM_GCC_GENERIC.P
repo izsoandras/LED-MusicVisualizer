@@ -1,0 +1,124 @@
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/CortexM3/ARM_GCC_541/Debug/ledlight.o : D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/ADC.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/ADC_AMux.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/ADC_Ext_CP_Clk.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/ADC_IRQ.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/ADC_theACLK.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/AMux_1.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/CyDmac.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/CyFlash.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/CyLib.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/CySpc.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/EEPROM.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/LED_JACK.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/LED_JACK_aliases.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/LED_MIC.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/LED_MIC_aliases.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/LIN.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/LIN_AMP_OUT.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/LIN_AMP_OUT_aliases.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/LIN_aliases.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/MIC.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/MIC_aliases.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/OnboardLED.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/OnboardLED_aliases.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/PWM_B.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/PWM_G.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/PWM_R.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/PWM_clk.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/Pin_B.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/Pin_B_aliases.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/Pin_G.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/Pin_G_aliases.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/Pin_R.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/Pin_R_aliases.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/SW_mode.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/SW_mode_aliases.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/SW_src.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/SW_src_aliases.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/Timer_1.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/UART.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/UART_IntClock.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/cmsis_armcc.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/cmsis_compiler.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/cmsis_gcc.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/core_cm3.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/core_cm3_psoc5.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/cyPm.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/cy_em_eeprom.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/cydevice.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/cydevice_trm.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/cydisabledsheets.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/cyfitter.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/cyfitter_cfg.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/cypins.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/cytypes.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/isr_ADC.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/isr_Timer.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/opamp_1.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/project.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/timer_clock.h D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/ledlight.c D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/ledlight.h 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/ADC.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/ADC_AMux.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/ADC_Ext_CP_Clk.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/ADC_IRQ.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/ADC_theACLK.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/AMux_1.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/CyDmac.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/CyFlash.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/CyLib.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/CySpc.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/EEPROM.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/LED_JACK.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/LED_JACK_aliases.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/LED_MIC.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/LED_MIC_aliases.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/LIN.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/LIN_AMP_OUT.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/LIN_AMP_OUT_aliases.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/LIN_aliases.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/MIC.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/MIC_aliases.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/OnboardLED.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/OnboardLED_aliases.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/PWM_B.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/PWM_G.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/PWM_R.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/PWM_clk.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/Pin_B.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/Pin_B_aliases.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/Pin_G.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/Pin_G_aliases.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/Pin_R.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/Pin_R_aliases.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/SW_mode.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/SW_mode_aliases.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/SW_src.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/SW_src_aliases.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/Timer_1.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/UART.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/UART_IntClock.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/cmsis_armcc.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/cmsis_compiler.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/cmsis_gcc.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/core_cm3.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/core_cm3_psoc5.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/cyPm.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/cy_em_eeprom.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/cydevice.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/cydevice_trm.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/cydisabledsheets.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/cyfitter.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/cyfitter_cfg.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/cypins.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/cytypes.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/isr_ADC.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/isr_Timer.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/opamp_1.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/project.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/Generated_Source/PSoC5/timer_clock.h : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/ledlight.c : 
+
+D:/Users/Tarsoly/Dokumentumok/BME/6.\ felev/MikAlk/MikAlkHF/LEDcontroller.cydsn/ledlight.h : 
+

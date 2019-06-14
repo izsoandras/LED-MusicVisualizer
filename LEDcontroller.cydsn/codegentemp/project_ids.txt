@@ -1,0 +1,6 @@
+D:\Users\Tarsoly\Dokumentumok\BME\6. felev\MikAlk\MikAlkHF\LEDcontroller.cydsn\LEDcontroller.cyprj|687d5429-14a6-44f5-983a-5f6d9ef2f59a
+C:\Program Files (x86)\Cypress\PSoC Creator\4.2\PSoC Creator\psoc\content\default\CyAnnotationLibrary\CyAnnotationLibrary.cylib\CyAnnotationLibrary.cyprj|b4eca471-9636-46ff-9954-e94cf793ed28
+D:\Users\Tarsoly\Documents\PSoC Creator\4.2\Downloads ( 4.2).cylib\Downloads ( 4.2).cyprj|e4e981e8-71eb-49ad-a208-1334a3ec13b0
+C:\Program Files (x86)\Cypress\PSoC Creator\4.2\PSoC Creator\psoc\content\cycomponentlibraryupdates\CyComponentLibraryUpdates.cylib\CyComponentLibraryUpdates.cyprj|3c7f1f7e-ee54-4835-ae0a-633f79a1903f
+C:\Program Files (x86)\Cypress\PSoC Creator\4.2\PSoC Creator\psoc\content\cycomponentlibrary\CyComponentLibrary.cylib\CyComponentLibrary.cyprj|cbfec6fa-a585-4a5b-966a-899e32a70042
+C:\Program Files (x86)\Cypress\PSoC Creator\4.2\PSoC Creator\psoc\content\cyprimitives\CyPrimitives.cylib\CyPrimitives.cyprj|5841df4b-4cd1-4d7e-8b22-ddde190a5ed1

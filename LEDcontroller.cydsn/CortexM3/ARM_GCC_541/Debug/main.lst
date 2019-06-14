@@ -1,0 +1,3776 @@
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 1
+
+
+   1              		.syntax unified
+   2              		.cpu cortex-m3
+   3              		.fpu softvfp
+   4              		.eabi_attribute 20, 1
+   5              		.eabi_attribute 21, 1
+   6              		.eabi_attribute 23, 3
+   7              		.eabi_attribute 24, 1
+   8              		.eabi_attribute 25, 1
+   9              		.eabi_attribute 26, 1
+  10              		.eabi_attribute 30, 1
+  11              		.eabi_attribute 34, 1
+  12              		.eabi_attribute 18, 4
+  13              		.thumb
+  14              		.syntax unified
+  15              		.file	"main.c"
+  16              		.text
+  17              	.Ltext0:
+  18              		.cfi_sections	.debug_frame
+  19              		.section	.text.AdcIT,"ax",%progbits
+  20              		.align	2
+  21              		.global	AdcIT
+  22              		.thumb
+  23              		.thumb_func
+  24              		.type	AdcIT, %function
+  25              	AdcIT:
+  26              	.LFB67:
+  27              		.file 1 "main.c"
+   1:main.c        **** /* ========================================
+   2:main.c        ****  *
+   3:main.c        ****  * Copyright YOUR COMPANY, THE YEAR
+   4:main.c        ****  * All Rights Reserved
+   5:main.c        ****  * UNPUBLISHED, LICENSED SOFTWARE.
+   6:main.c        ****  *
+   7:main.c        ****  * CONFIDENTIAL AND PROPRIETARY INFORMATION
+   8:main.c        ****  * WHICH IS THE PROPERTY OF your company.
+   9:main.c        ****  *
+  10:main.c        ****  * ========================================
+  11:main.c        **** */
+  12:main.c        **** #include "project.h"
+  13:main.c        **** #include <stdbool.h>
+  14:main.c        **** #include "ledlight.h"
+  15:main.c        **** #include <stdio.h>
+  16:main.c        **** 
+  17:main.c        **** #define STATE_ADDR 0
+  18:main.c        **** #define SRC_ADDR 1
+  19:main.c        **** 
+  20:main.c        **** /**Char array to store the message we want to send on serial
+  21:main.c        **** */
+  22:main.c        **** char buff[40];
+  23:main.c        **** /** Stores if the control is set to remote
+  24:main.c        **** */
+  25:main.c        **** bool terminalEnabled = false;
+  26:main.c        **** /** Stores the current state of the statemachine.
+  27:main.c        **** */
+  28:main.c        **** LightStates currentState;
+  29:main.c        **** /** Stores the next state of the statemachine.
+  30:main.c        **** */
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 2
+
+
+  31:main.c        **** LightStates nextState = -1;
+  32:main.c        **** /** Set the initial state of the mode switching push button.
+  33:main.c        ****   * The button is active low.
+  34:main.c        **** */
+  35:main.c        **** bool sw_modeStatus = true;
+  36:main.c        **** /** Set the initial state of the source switching push button.
+  37:main.c        ****   * The button is active low.
+  38:main.c        **** */
+  39:main.c        **** bool sw_srcStatus = true;
+  40:main.c        **** /** Enumerate to use for the audio input
+  41:main.c        **** */
+  42:main.c        **** typedef enum InputChannel{
+  43:main.c        ****     Mic = 0,
+  44:main.c        ****     Jack = 1
+  45:main.c        **** } InputChannel;
+  46:main.c        **** /** Currently selected channel
+  47:main.c        **** */
+  48:main.c        **** InputChannel srcChannel = -1;
+  49:main.c        **** /** Set the audio input channel
+  50:main.c        ****  * @param channel The audio channel you want to select
+  51:main.c        **** */
+  52:main.c        **** void setInput(InputChannel channel){
+  53:main.c        ****     //if the channel is different than the current, change the variable, write to memory, set the m
+  54:main.c        ****     if(channel != srcChannel){
+  55:main.c        ****         srcChannel = channel;
+  56:main.c        ****         EEPROM_WriteByte((uint8)srcChannel, SRC_ADDR);
+  57:main.c        ****         AMux_1_Select(srcChannel);
+  58:main.c        ****         
+  59:main.c        ****         LED_JACK_Write(srcChannel);
+  60:main.c        ****         LED_MIC_Write((srcChannel+1)%2);
+  61:main.c        ****     }
+  62:main.c        **** }
+  63:main.c        **** /** Update the state of the main state machine
+  64:main.c        **** */
+  65:main.c        **** void updateState(){
+  66:main.c        ****     if(currentState != nextState){
+  67:main.c        ****         currentState = nextState;
+  68:main.c        ****         EEPROM_WriteByte((uint8)nextState, STATE_ADDR);
+  69:main.c        ****         sprintf(buff, "State changed: %d\n\r", nextState);
+  70:main.c        ****         UART_PutString(buff);
+  71:main.c        ****     }
+  72:main.c        **** }
+  73:main.c        **** 
+  74:main.c        **** /** Timer interrupt which is called every 1ms.
+  75:main.c        ****   * This function manages the milsec flag for the lightshows.
+  76:main.c        ****   * Also handles the button presses.
+  77:main.c        ****   * @param TimerIT the name of the interrupt to handle
+  78:main.c        **** */
+  79:main.c        **** CY_ISR(TimerIT){
+  80:main.c        ****     //Store the currently selected source and the state of the buttons during the last few calls.
+  81:main.c        ****     //It's used for the debouncing
+  82:main.c        ****     static bool sw_modePrev[] = {true, true, true, true, true}, sw_srcPrev[] = {true, true, true, t
+  83:main.c        ****     static uint8 i = 0;
+  84:main.c        ****     //Clear the interrupt
+  85:main.c        ****     Timer_1_STATUS;
+  86:main.c        ****     milsec = true;
+  87:main.c        ****     millis++;
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 3
+
+
+  88:main.c        ****    
+  89:main.c        ****     if(!terminalEnabled){
+  90:main.c        ****         sw_modePrev[i%5] =  SW_mode_Read();
+  91:main.c        ****         bool sw_modeNow = false;
+  92:main.c        ****         //Checking if any of the last 5 button reads is high.
+  93:main.c        ****         for(int i = 0; i < 5; i++){
+  94:main.c        ****             sw_modeNow = sw_modeNow || sw_modePrev[i];
+  95:main.c        ****         }
+  96:main.c        ****         //If none of the last 5 reading was high, that means the button is pressed
+  97:main.c        ****         //If the button is pressed and it wasn't before change the state
+  98:main.c        ****         if(!sw_modeNow && sw_modeStatus){
+  99:main.c        ****             nextState = ((currentState+1)%StateNo);
+ 100:main.c        ****             sw_modeStatus = false;
+ 101:main.c        ****         //If there is at least 1 high value that means the button is not pressed or it's bouncing
+ 102:main.c        ****         } else if(sw_modeNow){
+ 103:main.c        ****             sw_modeStatus = true;
+ 104:main.c        ****         }
+ 105:main.c        ****     
+ 106:main.c        ****         sw_srcPrev[i%5] = SW_src_Read();
+ 107:main.c        ****         bool sw_srcNow = false;
+ 108:main.c        ****         //Checking if any of the last 5 button reads is high.
+ 109:main.c        ****         for(int i = 0; i < 5; i++){
+ 110:main.c        ****             sw_srcNow = sw_srcNow || sw_srcPrev[i];
+ 111:main.c        ****         }
+ 112:main.c        ****         //If none of the last 5 reading was high, that means the button is pressed
+ 113:main.c        ****         //If the button is pressed and it wasn't before change the source and the feedback LEDs.
+ 114:main.c        ****         if(!sw_srcNow && sw_srcStatus){
+ 115:main.c        ****             setInput(!srcChannel);
+ 116:main.c        ****             sw_srcStatus = false;
+ 117:main.c        ****         //If there is at least 1 high value that means the button is not pressed or it's bouncing
+ 118:main.c        ****         } else if(sw_srcNow){
+ 119:main.c        ****             sw_srcStatus = true;
+ 120:main.c        ****         }
+ 121:main.c        ****     
+ 122:main.c        ****     
+ 123:main.c        ****         i++;
+ 124:main.c        ****     }
+ 125:main.c        **** }
+ 126:main.c        **** /** The interrupt called when the ADC has finished a conversion
+ 127:main.c        ****  * @AdcIT AdcIT The name of the interrupt to handle
+ 128:main.c        **** */
+ 129:main.c        **** CY_ISR(AdcIT){
+  28              		.loc 1 129 0
+  29              		.cfi_startproc
+  30              		@ args = 0, pretend = 0, frame = 0
+  31              		@ frame_needed = 0, uses_anonymous_args = 0
+  32 0000 38B5     		push	{r3, r4, r5, lr}
+  33              		.cfi_def_cfa_offset 16
+  34              		.cfi_offset 3, -16
+  35              		.cfi_offset 4, -12
+  36              		.cfi_offset 5, -8
+  37              		.cfi_offset 14, -4
+ 130:main.c        ****     //gather samples to the buffer, and update the number of samples until we have enough
+ 131:main.c        ****     if(elementIndex < WINDOW_SIZE){
+  38              		.loc 1 131 0
+  39 0002 0A4B     		ldr	r3, .L4
+  40 0004 1C88     		ldrh	r4, [r3]
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 4
+
+
+  41 0006 FF2C     		cmp	r4, #255
+  42 0008 0FD8     		bhi	.L1
+ 132:main.c        ****         audioBuff[buffIndex][elementIndex] = ADC_GetResult32()-33000;
+  43              		.loc 1 132 0
+  44 000a 094B     		ldr	r3, .L4+4
+  45 000c 1D78     		ldrb	r5, [r3]	@ zero_extendqisi2
+  46 000e FFF7FEFF 		bl	ADC_GetResult32
+  47              	.LVL0:
+  48 0012 04EB0524 		add	r4, r4, r5, lsl #8
+  49 0016 00F5FE40 		add	r0, r0, #32512
+  50 001a 1830     		adds	r0, r0, #24
+  51 001c 054B     		ldr	r3, .L4+8
+  52 001e 23F81400 		strh	r0, [r3, r4, lsl #1]	@ movhi
+ 133:main.c        ****         elementIndex++;
+  53              		.loc 1 133 0
+  54 0022 024A     		ldr	r2, .L4
+  55 0024 1388     		ldrh	r3, [r2]
+  56 0026 0133     		adds	r3, r3, #1
+  57 0028 1380     		strh	r3, [r2]	@ movhi
+  58              	.L1:
+  59 002a 38BD     		pop	{r3, r4, r5, pc}
+  60              	.L5:
+  61              		.align	2
+  62              	.L4:
+  63 002c 00000000 		.word	elementIndex
+  64 0030 00000000 		.word	buffIndex
+  65 0034 00000000 		.word	audioBuff
+  66              		.cfi_endproc
+  67              	.LFE67:
+  68              		.size	AdcIT, .-AdcIT
+  69              		.section	.text.setInput,"ax",%progbits
+  70              		.align	2
+  71              		.global	setInput
+  72              		.thumb
+  73              		.thumb_func
+  74              		.type	setInput, %function
+  75              	setInput:
+  76              	.LFB64:
+  52:main.c        ****     //if the channel is different than the current, change the variable, write to memory, set the m
+  77              		.loc 1 52 0
+  78              		.cfi_startproc
+  79              		@ args = 0, pretend = 0, frame = 0
+  80              		@ frame_needed = 0, uses_anonymous_args = 0
+  81              	.LVL1:
+  54:main.c        ****         srcChannel = channel;
+  82              		.loc 1 54 0
+  83 0000 0E4B     		ldr	r3, .L11
+  84 0002 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+  85 0004 8342     		cmp	r3, r0
+  86 0006 18D0     		beq	.L10
+  52:main.c        ****     //if the channel is different than the current, change the variable, write to memory, set the m
+  87              		.loc 1 52 0
+  88 0008 10B5     		push	{r4, lr}
+  89              		.cfi_def_cfa_offset 8
+  90              		.cfi_offset 4, -8
+  91              		.cfi_offset 14, -4
+  55:main.c        ****         EEPROM_WriteByte((uint8)srcChannel, SRC_ADDR);
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 5
+
+
+  92              		.loc 1 55 0
+  93 000a 0C4C     		ldr	r4, .L11
+  94 000c 2070     		strb	r0, [r4]
+  56:main.c        ****         AMux_1_Select(srcChannel);
+  95              		.loc 1 56 0
+  96 000e 0121     		movs	r1, #1
+  97 0010 FFF7FEFF 		bl	EEPROM_WriteByte
+  98              	.LVL2:
+  57:main.c        ****         
+  99              		.loc 1 57 0
+ 100 0014 2078     		ldrb	r0, [r4]	@ zero_extendqisi2
+ 101 0016 FFF7FEFF 		bl	AMux_1_FastSelect
+ 102              	.LVL3:
+  59:main.c        ****         LED_MIC_Write((srcChannel+1)%2);
+ 103              		.loc 1 59 0
+ 104 001a 2078     		ldrb	r0, [r4]	@ zero_extendqisi2
+ 105 001c FFF7FEFF 		bl	LED_JACK_Write
+ 106              	.LVL4:
+  60:main.c        ****     }
+ 107              		.loc 1 60 0
+ 108 0020 2078     		ldrb	r0, [r4]	@ zero_extendqisi2
+ 109 0022 431C     		adds	r3, r0, #1
+ 110 0024 0648     		ldr	r0, .L11+4
+ 111 0026 1840     		ands	r0, r3, r0
+ 112 0028 03D5     		bpl	.L8
+ 113 002a 0138     		subs	r0, r0, #1
+ 114 002c 60F00100 		orn	r0, r0, #1
+ 115 0030 0130     		adds	r0, r0, #1
+ 116              	.L8:
+ 117 0032 C0B2     		uxtb	r0, r0
+ 118 0034 FFF7FEFF 		bl	LED_MIC_Write
+ 119              	.LVL5:
+ 120 0038 10BD     		pop	{r4, pc}
+ 121              	.LVL6:
+ 122              	.L10:
+ 123              		.cfi_def_cfa_offset 0
+ 124              		.cfi_restore 4
+ 125              		.cfi_restore 14
+ 126 003a 7047     		bx	lr
+ 127              	.L12:
+ 128              		.align	2
+ 129              	.L11:
+ 130 003c 00000000 		.word	.LANCHOR0
+ 131 0040 01000080 		.word	-2147483647
+ 132              		.cfi_endproc
+ 133              	.LFE64:
+ 134              		.size	setInput, .-setInput
+ 135              		.section	.text.TimerIT,"ax",%progbits
+ 136              		.align	2
+ 137              		.global	TimerIT
+ 138              		.thumb
+ 139              		.thumb_func
+ 140              		.type	TimerIT, %function
+ 141              	TimerIT:
+ 142              	.LFB66:
+  79:main.c        ****     //Store the currently selected source and the state of the buttons during the last few calls.
+ 143              		.loc 1 79 0
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 6
+
+
+ 144              		.cfi_startproc
+ 145              		@ args = 0, pretend = 0, frame = 0
+ 146              		@ frame_needed = 0, uses_anonymous_args = 0
+  85:main.c        ****     milsec = true;
+ 147              		.loc 1 85 0
+ 148 0000 424B     		ldr	r3, .L32
+ 149 0002 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+  86:main.c        ****     millis++;
+ 150              		.loc 1 86 0
+ 151 0004 0122     		movs	r2, #1
+ 152 0006 424B     		ldr	r3, .L32+4
+ 153 0008 1A70     		strb	r2, [r3]
+  87:main.c        ****    
+ 154              		.loc 1 87 0
+ 155 000a 4249     		ldr	r1, .L32+8
+ 156 000c D1E90023 		ldrd	r2, [r1]
+ 157 0010 0132     		adds	r2, r2, #1
+ 158 0012 43F10003 		adc	r3, r3, #0
+ 159 0016 C1E90023 		strd	r2, [r1]
+  89:main.c        ****         sw_modePrev[i%5] =  SW_mode_Read();
+ 160              		.loc 1 89 0
+ 161 001a 3F4B     		ldr	r3, .L32+12
+ 162 001c 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 163 001e 002B     		cmp	r3, #0
+ 164 0020 72D1     		bne	.L31
+  79:main.c        ****     //Store the currently selected source and the state of the buttons during the last few calls.
+ 165              		.loc 1 79 0
+ 166 0022 10B5     		push	{r4, lr}
+ 167              		.cfi_def_cfa_offset 8
+ 168              		.cfi_offset 4, -8
+ 169              		.cfi_offset 14, -4
+ 170              	.LBB2:
+  90:main.c        ****         bool sw_modeNow = false;
+ 171              		.loc 1 90 0
+ 172 0024 3C4B     		ldr	r3, .L32+12
+ 173 0026 5B78     		ldrb	r3, [r3, #1]	@ zero_extendqisi2
+ 174 0028 3C4C     		ldr	r4, .L32+16
+ 175 002a A4FB0324 		umull	r2, r4, r4, r3
+ 176 002e A408     		lsrs	r4, r4, #2
+ 177 0030 04EB8404 		add	r4, r4, r4, lsl #2
+ 178 0034 1B1B     		subs	r3, r3, r4
+ 179 0036 DCB2     		uxtb	r4, r3
+ 180 0038 FFF7FEFF 		bl	SW_mode_Read
+ 181              	.LVL7:
+ 182 003c 0030     		adds	r0, r0, #0
+ 183 003e 18BF     		it	ne
+ 184 0040 0120     		movne	r0, #1
+ 185 0042 374B     		ldr	r3, .L32+20
+ 186 0044 1C44     		add	r4, r4, r3
+ 187 0046 2071     		strb	r0, [r4, #4]
+ 188              	.LVL8:
+ 189              	.LBB3:
+  93:main.c        ****             sw_modeNow = sw_modeNow || sw_modePrev[i];
+ 190              		.loc 1 93 0
+ 191 0048 0022     		movs	r2, #0
+ 192              	.LBE3:
+  91:main.c        ****         //Checking if any of the last 5 button reads is high.
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 7
+
+
+ 193              		.loc 1 91 0
+ 194 004a 1346     		mov	r3, r2
+ 195              	.LBB4:
+  93:main.c        ****             sw_modeNow = sw_modeNow || sw_modePrev[i];
+ 196              		.loc 1 93 0
+ 197 004c 0AE0     		b	.L15
+ 198              	.LVL9:
+ 199              	.L17:
+  94:main.c        ****         }
+ 200              		.loc 1 94 0
+ 201 004e 2BB9     		cbnz	r3, .L26
+  94:main.c        ****         }
+ 202              		.loc 1 94 0 is_stmt 0 discriminator 2
+ 203 0050 334B     		ldr	r3, .L32+20
+ 204              	.LVL10:
+ 205 0052 1344     		add	r3, r3, r2
+ 206 0054 1B79     		ldrb	r3, [r3, #4]	@ zero_extendqisi2
+ 207 0056 1BB1     		cbz	r3, .L27
+  94:main.c        ****         }
+ 208              		.loc 1 94 0
+ 209 0058 0123     		movs	r3, #1
+ 210 005a 02E0     		b	.L16
+ 211              	.LVL11:
+ 212              	.L26:
+ 213 005c 0123     		movs	r3, #1
+ 214              	.LVL12:
+ 215 005e 00E0     		b	.L16
+ 216              	.L27:
+ 217 0060 0023     		movs	r3, #0
+ 218              	.L16:
+ 219              	.LVL13:
+  93:main.c        ****             sw_modeNow = sw_modeNow || sw_modePrev[i];
+ 220              		.loc 1 93 0 is_stmt 1 discriminator 6
+ 221 0062 0132     		adds	r2, r2, #1
+ 222              	.LVL14:
+ 223              	.L15:
+  93:main.c        ****             sw_modeNow = sw_modeNow || sw_modePrev[i];
+ 224              		.loc 1 93 0 is_stmt 0 discriminator 2
+ 225 0064 042A     		cmp	r2, #4
+ 226 0066 F2DD     		ble	.L17
+ 227              	.LBE4:
+  98:main.c        ****             nextState = ((currentState+1)%StateNo);
+ 228              		.loc 1 98 0 is_stmt 1
+ 229 0068 8BB9     		cbnz	r3, .L18
+  98:main.c        ****             nextState = ((currentState+1)%StateNo);
+ 230              		.loc 1 98 0 is_stmt 0 discriminator 1
+ 231 006a 2D4A     		ldr	r2, .L32+20
+ 232              	.LVL15:
+ 233 006c 527A     		ldrb	r2, [r2, #9]	@ zero_extendqisi2
+ 234 006e 72B1     		cbz	r2, .L18
+  99:main.c        ****             sw_modeStatus = false;
+ 235              		.loc 1 99 0 is_stmt 1
+ 236 0070 2C4B     		ldr	r3, .L32+24
+ 237              	.LVL16:
+ 238 0072 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 239 0074 0133     		adds	r3, r3, #1
+ 240 0076 2C4A     		ldr	r2, .L32+28
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 8
+
+
+ 241 0078 1340     		ands	r3, r3, r2
+ 242 007a 03D5     		bpl	.L19
+ 243 007c 013B     		subs	r3, r3, #1
+ 244 007e 63F00303 		orn	r3, r3, #3
+ 245 0082 0133     		adds	r3, r3, #1
+ 246              	.L19:
+ 247 0084 264A     		ldr	r2, .L32+20
+ 248 0086 9372     		strb	r3, [r2, #10]
+ 100:main.c        ****         //If there is at least 1 high value that means the button is not pressed or it's bouncing
+ 249              		.loc 1 100 0
+ 250 0088 0023     		movs	r3, #0
+ 251 008a 5372     		strb	r3, [r2, #9]
+ 252 008c 03E0     		b	.L20
+ 253              	.LVL17:
+ 254              	.L18:
+ 102:main.c        ****             sw_modeStatus = true;
+ 255              		.loc 1 102 0
+ 256 008e 13B1     		cbz	r3, .L20
+ 103:main.c        ****         }
+ 257              		.loc 1 103 0
+ 258 0090 0122     		movs	r2, #1
+ 259 0092 234B     		ldr	r3, .L32+20
+ 260              	.LVL18:
+ 261 0094 5A72     		strb	r2, [r3, #9]
+ 262              	.L20:
+ 106:main.c        ****         bool sw_srcNow = false;
+ 263              		.loc 1 106 0
+ 264 0096 204B     		ldr	r3, .L32+12
+ 265 0098 5B78     		ldrb	r3, [r3, #1]	@ zero_extendqisi2
+ 266 009a 204C     		ldr	r4, .L32+16
+ 267 009c A4FB0324 		umull	r2, r4, r4, r3
+ 268 00a0 A408     		lsrs	r4, r4, #2
+ 269 00a2 04EB8404 		add	r4, r4, r4, lsl #2
+ 270 00a6 1B1B     		subs	r3, r3, r4
+ 271 00a8 DCB2     		uxtb	r4, r3
+ 272 00aa FFF7FEFF 		bl	SW_src_Read
+ 273              	.LVL19:
+ 274 00ae 0030     		adds	r0, r0, #0
+ 275 00b0 18BF     		it	ne
+ 276 00b2 0120     		movne	r0, #1
+ 277 00b4 1A4B     		ldr	r3, .L32+20
+ 278 00b6 1C44     		add	r4, r4, r3
+ 279 00b8 2073     		strb	r0, [r4, #12]
+ 280              	.LVL20:
+ 281              	.LBB5:
+ 109:main.c        ****             sw_srcNow = sw_srcNow || sw_srcPrev[i];
+ 282              		.loc 1 109 0
+ 283 00ba 0022     		movs	r2, #0
+ 284              	.LBE5:
+ 107:main.c        ****         //Checking if any of the last 5 button reads is high.
+ 285              		.loc 1 107 0
+ 286 00bc 1346     		mov	r3, r2
+ 287              	.LBB6:
+ 109:main.c        ****             sw_srcNow = sw_srcNow || sw_srcPrev[i];
+ 288              		.loc 1 109 0
+ 289 00be 0AE0     		b	.L21
+ 290              	.LVL21:
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 9
+
+
+ 291              	.L23:
+ 110:main.c        ****         }
+ 292              		.loc 1 110 0
+ 293 00c0 2BB9     		cbnz	r3, .L28
+ 110:main.c        ****         }
+ 294              		.loc 1 110 0 is_stmt 0 discriminator 2
+ 295 00c2 174B     		ldr	r3, .L32+20
+ 296              	.LVL22:
+ 297 00c4 1344     		add	r3, r3, r2
+ 298 00c6 1B7B     		ldrb	r3, [r3, #12]	@ zero_extendqisi2
+ 299 00c8 1BB1     		cbz	r3, .L29
+ 110:main.c        ****         }
+ 300              		.loc 1 110 0
+ 301 00ca 0123     		movs	r3, #1
+ 302 00cc 02E0     		b	.L22
+ 303              	.LVL23:
+ 304              	.L28:
+ 305 00ce 0123     		movs	r3, #1
+ 306              	.LVL24:
+ 307 00d0 00E0     		b	.L22
+ 308              	.L29:
+ 309 00d2 0023     		movs	r3, #0
+ 310              	.L22:
+ 311              	.LVL25:
+ 109:main.c        ****             sw_srcNow = sw_srcNow || sw_srcPrev[i];
+ 312              		.loc 1 109 0 is_stmt 1 discriminator 6
+ 313 00d4 0132     		adds	r2, r2, #1
+ 314              	.LVL26:
+ 315              	.L21:
+ 109:main.c        ****             sw_srcNow = sw_srcNow || sw_srcPrev[i];
+ 316              		.loc 1 109 0 is_stmt 0 discriminator 2
+ 317 00d6 042A     		cmp	r2, #4
+ 318 00d8 F2DD     		ble	.L23
+ 319              	.LBE6:
+ 114:main.c        ****             setInput(!srcChannel);
+ 320              		.loc 1 114 0 is_stmt 1
+ 321 00da 63B9     		cbnz	r3, .L24
+ 114:main.c        ****             setInput(!srcChannel);
+ 322              		.loc 1 114 0 is_stmt 0 discriminator 1
+ 323 00dc 104A     		ldr	r2, .L32+20
+ 324              	.LVL27:
+ 325 00de 527C     		ldrb	r2, [r2, #17]	@ zero_extendqisi2
+ 326 00e0 4AB1     		cbz	r2, .L24
+ 115:main.c        ****             sw_srcStatus = false;
+ 327              		.loc 1 115 0 is_stmt 1
+ 328 00e2 0F4C     		ldr	r4, .L32+20
+ 329 00e4 2078     		ldrb	r0, [r4]	@ zero_extendqisi2
+ 330 00e6 B0FA80F0 		clz	r0, r0
+ 331 00ea 4009     		lsrs	r0, r0, #5
+ 332 00ec FFF7FEFF 		bl	setInput
+ 333              	.LVL28:
+ 116:main.c        ****         //If there is at least 1 high value that means the button is not pressed or it's bouncing
+ 334              		.loc 1 116 0
+ 335 00f0 0023     		movs	r3, #0
+ 336 00f2 6374     		strb	r3, [r4, #17]
+ 337 00f4 03E0     		b	.L25
+ 338              	.LVL29:
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 10
+
+
+ 339              	.L24:
+ 118:main.c        ****             sw_srcStatus = true;
+ 340              		.loc 1 118 0
+ 341 00f6 13B1     		cbz	r3, .L25
+ 119:main.c        ****         }
+ 342              		.loc 1 119 0
+ 343 00f8 0122     		movs	r2, #1
+ 344 00fa 094B     		ldr	r3, .L32+20
+ 345              	.LVL30:
+ 346 00fc 5A74     		strb	r2, [r3, #17]
+ 347              	.L25:
+ 123:main.c        ****     }
+ 348              		.loc 1 123 0
+ 349 00fe 064A     		ldr	r2, .L32+12
+ 350 0100 5378     		ldrb	r3, [r2, #1]	@ zero_extendqisi2
+ 351 0102 0133     		adds	r3, r3, #1
+ 352 0104 5370     		strb	r3, [r2, #1]
+ 353 0106 10BD     		pop	{r4, pc}
+ 354              	.L31:
+ 355              		.cfi_def_cfa_offset 0
+ 356              		.cfi_restore 4
+ 357              		.cfi_restore 14
+ 358 0108 7047     		bx	lr
+ 359              	.L33:
+ 360 010a 00BF     		.align	2
+ 361              	.L32:
+ 362 010c 274F0040 		.word	1073762087
+ 363 0110 00000000 		.word	milsec
+ 364 0114 00000000 		.word	millis
+ 365 0118 00000000 		.word	.LANCHOR1
+ 366 011c CDCCCCCC 		.word	-858993459
+ 367 0120 00000000 		.word	.LANCHOR0
+ 368 0124 00000000 		.word	currentState
+ 369 0128 03000080 		.word	-2147483645
+ 370              	.LBE2:
+ 371              		.cfi_endproc
+ 372              	.LFE66:
+ 373              		.size	TimerIT, .-TimerIT
+ 374              		.section	.text.updateState,"ax",%progbits
+ 375              		.align	2
+ 376              		.global	updateState
+ 377              		.thumb
+ 378              		.thumb_func
+ 379              		.type	updateState, %function
+ 380              	updateState:
+ 381              	.LFB65:
+  65:main.c        ****     if(currentState != nextState){
+ 382              		.loc 1 65 0
+ 383              		.cfi_startproc
+ 384              		@ args = 0, pretend = 0, frame = 0
+ 385              		@ frame_needed = 0, uses_anonymous_args = 0
+  66:main.c        ****         currentState = nextState;
+ 386              		.loc 1 66 0
+ 387 0000 0B4B     		ldr	r3, .L38
+ 388 0002 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 389 0004 0B4A     		ldr	r2, .L38+4
+ 390 0006 907A     		ldrb	r0, [r2, #10]	@ zero_extendqisi2
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 11
+
+
+ 391 0008 8342     		cmp	r3, r0
+ 392 000a 10D0     		beq	.L37
+  65:main.c        ****     if(currentState != nextState){
+ 393              		.loc 1 65 0
+ 394 000c 10B5     		push	{r4, lr}
+ 395              		.cfi_def_cfa_offset 8
+ 396              		.cfi_offset 4, -8
+ 397              		.cfi_offset 14, -4
+  67:main.c        ****         EEPROM_WriteByte((uint8)nextState, STATE_ADDR);
+ 398              		.loc 1 67 0
+ 399 000e 084B     		ldr	r3, .L38
+ 400 0010 1870     		strb	r0, [r3]
+  68:main.c        ****         sprintf(buff, "State changed: %d\n\r", nextState);
+ 401              		.loc 1 68 0
+ 402 0012 0021     		movs	r1, #0
+ 403 0014 FFF7FEFF 		bl	EEPROM_WriteByte
+ 404              	.LVL31:
+  69:main.c        ****         UART_PutString(buff);
+ 405              		.loc 1 69 0
+ 406 0018 074C     		ldr	r4, .L38+8
+ 407 001a 064B     		ldr	r3, .L38+4
+ 408 001c 9A7A     		ldrb	r2, [r3, #10]	@ zero_extendqisi2
+ 409 001e 0749     		ldr	r1, .L38+12
+ 410 0020 2046     		mov	r0, r4
+ 411 0022 FFF7FEFF 		bl	sprintf
+ 412              	.LVL32:
+  70:main.c        ****     }
+ 413              		.loc 1 70 0
+ 414 0026 2046     		mov	r0, r4
+ 415 0028 FFF7FEFF 		bl	UART_PutString
+ 416              	.LVL33:
+ 417 002c 10BD     		pop	{r4, pc}
+ 418              	.L37:
+ 419              		.cfi_def_cfa_offset 0
+ 420              		.cfi_restore 4
+ 421              		.cfi_restore 14
+ 422 002e 7047     		bx	lr
+ 423              	.L39:
+ 424              		.align	2
+ 425              	.L38:
+ 426 0030 00000000 		.word	currentState
+ 427 0034 00000000 		.word	.LANCHOR0
+ 428 0038 00000000 		.word	buff
+ 429 003c 00000000 		.word	.LC0
+ 430              		.cfi_endproc
+ 431              	.LFE65:
+ 432              		.size	updateState, .-updateState
+ 433              		.section	.text.init,"ax",%progbits
+ 434              		.align	2
+ 435              		.global	init
+ 436              		.thumb
+ 437              		.thumb_func
+ 438              		.type	init, %function
+ 439              	init:
+ 440              	.LFB68:
+ 134:main.c        ****         //sprintf(buff, "%ld\r\n", ADC_GetResult32()-32768);
+ 135:main.c        ****         //UART_PutString(buff);
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 12
+
+
+ 136:main.c        ****     }
+ 137:main.c        **** }
+ 138:main.c        **** /** Initializes every compontent and sets default values.
+ 139:main.c        **** */
+ 140:main.c        **** void init(){
+ 441              		.loc 1 140 0
+ 442              		.cfi_startproc
+ 443              		@ args = 0, pretend = 0, frame = 0
+ 444              		@ frame_needed = 0, uses_anonymous_args = 0
+ 445 0000 38B5     		push	{r3, r4, r5, lr}
+ 446              		.cfi_def_cfa_offset 16
+ 447              		.cfi_offset 3, -16
+ 448              		.cfi_offset 4, -12
+ 449              		.cfi_offset 5, -8
+ 450              		.cfi_offset 14, -4
+ 141:main.c        ****     //serial port
+ 142:main.c        ****     UART_Start();
+ 451              		.loc 1 142 0
+ 452 0002 FFF7FEFF 		bl	UART_Start
+ 453              	.LVL34:
+ 143:main.c        ****     UART_PutString("Setup running\n\r");
+ 454              		.loc 1 143 0
+ 455 0006 2348     		ldr	r0, .L42
+ 456 0008 FFF7FEFF 		bl	UART_PutString
+ 457              	.LVL35:
+ 144:main.c        ****     //non volatile memory
+ 145:main.c        ****     EEPROM_Start();
+ 458              		.loc 1 145 0
+ 459 000c FFF7FEFF 		bl	EEPROM_Start
+ 460              	.LVL36:
+ 146:main.c        ****     //start the interrupts
+ 147:main.c        ****     isr_Timer_StartEx(TimerIT);
+ 461              		.loc 1 147 0
+ 462 0010 2148     		ldr	r0, .L42+4
+ 463 0012 FFF7FEFF 		bl	isr_Timer_StartEx
+ 464              	.LVL37:
+ 148:main.c        ****     isr_ADC_StartEx(AdcIT);
+ 465              		.loc 1 148 0
+ 466 0016 2148     		ldr	r0, .L42+8
+ 467 0018 FFF7FEFF 		bl	isr_ADC_StartEx
+ 468              	.LVL38:
+ 149:main.c        ****     //start the circuit elements
+ 150:main.c        ****     opamp_1_Start();
+ 469              		.loc 1 150 0
+ 470 001c FFF7FEFF 		bl	opamp_1_Start
+ 471              	.LVL39:
+ 151:main.c        ****     AMux_1_Start();
+ 472              		.loc 1 151 0
+ 473 0020 FFF7FEFF 		bl	AMux_1_Start
+ 474              	.LVL40:
+ 152:main.c        ****     ADC_Start();
+ 475              		.loc 1 152 0
+ 476 0024 FFF7FEFF 		bl	ADC_Start
+ 477              	.LVL41:
+ 153:main.c        ****     isr_ADC_Disable();
+ 478              		.loc 1 153 0
+ 479 0028 FFF7FEFF 		bl	isr_ADC_Disable
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 13
+
+
+ 480              	.LVL42:
+ 154:main.c        ****     ADC_StartConvert();
+ 481              		.loc 1 154 0
+ 482 002c FFF7FEFF 		bl	ADC_StartConvert
+ 483              	.LVL43:
+ 155:main.c        ****     //start PWMs
+ 156:main.c        ****     PWM_B_Start();
+ 484              		.loc 1 156 0
+ 485 0030 FFF7FEFF 		bl	PWM_B_Start
+ 486              	.LVL44:
+ 157:main.c        ****     PWM_B_WriteCompare(0);
+ 487              		.loc 1 157 0
+ 488 0034 0020     		movs	r0, #0
+ 489 0036 FFF7FEFF 		bl	PWM_B_WriteCompare
+ 490              	.LVL45:
+ 158:main.c        ****     PWM_R_Start();
+ 491              		.loc 1 158 0
+ 492 003a FFF7FEFF 		bl	PWM_R_Start
+ 493              	.LVL46:
+ 159:main.c        ****     PWM_R_WriteCompare(0);
+ 494              		.loc 1 159 0
+ 495 003e 0020     		movs	r0, #0
+ 496 0040 FFF7FEFF 		bl	PWM_R_WriteCompare
+ 497              	.LVL47:
+ 160:main.c        ****     PWM_G_Start();
+ 498              		.loc 1 160 0
+ 499 0044 FFF7FEFF 		bl	PWM_G_Start
+ 500              	.LVL48:
+ 161:main.c        ****     PWM_G_WriteCompare(0);
+ 501              		.loc 1 161 0
+ 502 0048 0020     		movs	r0, #0
+ 503 004a FFF7FEFF 		bl	PWM_G_WriteCompare
+ 504              	.LVL49:
+ 162:main.c        ****     //start the main timer
+ 163:main.c        ****     Timer_1_Start();
+ 505              		.loc 1 163 0
+ 506 004e FFF7FEFF 		bl	Timer_1_Start
+ 507              	.LVL50:
+ 164:main.c        ****     
+ 165:main.c        ****     //initialize the state machine
+ 166:main.c        ****     nextState = EEPROM_ReadByte(STATE_ADDR);
+ 508              		.loc 1 166 0
+ 509 0052 0020     		movs	r0, #0
+ 510 0054 FFF7FEFF 		bl	EEPROM_ReadByte
+ 511              	.LVL51:
+ 512 0058 0246     		mov	r2, r0
+ 513 005a 114D     		ldr	r5, .L42+12
+ 514 005c A872     		strb	r0, [r5, #10]
+ 167:main.c        ****     sprintf(buff, "Init state: %d\n\r", nextState);
+ 515              		.loc 1 167 0
+ 516 005e 114C     		ldr	r4, .L42+16
+ 517 0060 1149     		ldr	r1, .L42+20
+ 518 0062 2046     		mov	r0, r4
+ 519 0064 FFF7FEFF 		bl	sprintf
+ 520              	.LVL52:
+ 168:main.c        ****     UART_PutString(buff);
+ 521              		.loc 1 168 0
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 14
+
+
+ 522 0068 2046     		mov	r0, r4
+ 523 006a FFF7FEFF 		bl	UART_PutString
+ 524              	.LVL53:
+ 169:main.c        ****     //initialize the input
+ 170:main.c        ****     setInput(EEPROM_ReadByte(SRC_ADDR));
+ 525              		.loc 1 170 0
+ 526 006e 0120     		movs	r0, #1
+ 527 0070 FFF7FEFF 		bl	EEPROM_ReadByte
+ 528              	.LVL54:
+ 529 0074 FFF7FEFF 		bl	setInput
+ 530              	.LVL55:
+ 171:main.c        ****     sprintf(buff, "Init source: %d\n\r", srcChannel);
+ 531              		.loc 1 171 0
+ 532 0078 2A78     		ldrb	r2, [r5]	@ zero_extendqisi2
+ 533 007a 0C49     		ldr	r1, .L42+24
+ 534 007c 2046     		mov	r0, r4
+ 535 007e FFF7FEFF 		bl	sprintf
+ 536              	.LVL56:
+ 172:main.c        ****     UART_PutString(buff);
+ 537              		.loc 1 172 0
+ 538 0082 2046     		mov	r0, r4
+ 539 0084 FFF7FEFF 		bl	UART_PutString
+ 540              	.LVL57:
+ 173:main.c        ****    
+ 174:main.c        ****     //repotrt we finished the setup
+ 175:main.c        ****     UART_PutString("Setup done. Enabling Global IT\n\r");
+ 541              		.loc 1 175 0
+ 542 0088 0948     		ldr	r0, .L42+28
+ 543 008a FFF7FEFF 		bl	UART_PutString
+ 544              	.LVL58:
+ 176:main.c        ****     //enable global interrupts
+ 177:main.c        ****     CyGlobalIntEnable;
+ 545              		.loc 1 177 0
+ 546              		.syntax unified
+ 547              	@ 177 "main.c" 1
+ 548 008e 62B6     		CPSIE   i
+ 549              	@ 0 "" 2
+ 550              		.thumb
+ 551              		.syntax unified
+ 552 0090 38BD     		pop	{r3, r4, r5, pc}
+ 553              	.L43:
+ 554 0092 00BF     		.align	2
+ 555              	.L42:
+ 556 0094 14000000 		.word	.LC1
+ 557 0098 00000000 		.word	TimerIT
+ 558 009c 00000000 		.word	AdcIT
+ 559 00a0 00000000 		.word	.LANCHOR0
+ 560 00a4 00000000 		.word	buff
+ 561 00a8 24000000 		.word	.LC2
+ 562 00ac 38000000 		.word	.LC3
+ 563 00b0 4C000000 		.word	.LC4
+ 564              		.cfi_endproc
+ 565              	.LFE68:
+ 566              		.size	init, .-init
+ 567              		.section	.text.main,"ax",%progbits
+ 568              		.align	2
+ 569              		.global	main
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 15
+
+
+ 570              		.thumb
+ 571              		.thumb_func
+ 572              		.type	main, %function
+ 573              	main:
+ 574              	.LFB69:
+ 178:main.c        **** }
+ 179:main.c        **** /** The main program running the state machine.
+ 180:main.c        ****   * After a little "setup ready" lightshow, it starts the loop with the state machine running in it
+ 181:main.c        **** */
+ 182:main.c        **** int main(void)
+ 183:main.c        **** {   
+ 575              		.loc 1 183 0
+ 576              		.cfi_startproc
+ 577              		@ args = 0, pretend = 0, frame = 0
+ 578              		@ frame_needed = 0, uses_anonymous_args = 0
+ 579 0000 08B5     		push	{r3, lr}
+ 580              		.cfi_def_cfa_offset 8
+ 581              		.cfi_offset 3, -8
+ 582              		.cfi_offset 14, -4
+ 184:main.c        ****     init();
+ 583              		.loc 1 184 0
+ 584 0002 FFF7FEFF 		bl	init
+ 585              	.LVL59:
+ 185:main.c        ****     //Feedback for the user that setup is ready and the LEDs are working
+ 186:main.c        ****     PWM_B_WriteCompare(255);
+ 586              		.loc 1 186 0
+ 587 0006 FF20     		movs	r0, #255
+ 588 0008 FFF7FEFF 		bl	PWM_B_WriteCompare
+ 589              	.LVL60:
+ 187:main.c        ****     CyDelay(500);
+ 590              		.loc 1 187 0
+ 591 000c 4FF4FA70 		mov	r0, #500
+ 592 0010 FFF7FEFF 		bl	CyDelay
+ 593              	.LVL61:
+ 188:main.c        ****     PWM_B_WriteCompare(0);
+ 594              		.loc 1 188 0
+ 595 0014 0020     		movs	r0, #0
+ 596 0016 FFF7FEFF 		bl	PWM_B_WriteCompare
+ 597              	.LVL62:
+ 189:main.c        ****     PWM_G_WriteCompare(255);
+ 598              		.loc 1 189 0
+ 599 001a FF20     		movs	r0, #255
+ 600 001c FFF7FEFF 		bl	PWM_G_WriteCompare
+ 601              	.LVL63:
+ 190:main.c        ****     CyDelay(500);
+ 602              		.loc 1 190 0
+ 603 0020 4FF4FA70 		mov	r0, #500
+ 604 0024 FFF7FEFF 		bl	CyDelay
+ 605              	.LVL64:
+ 191:main.c        ****     PWM_G_WriteCompare(0);
+ 606              		.loc 1 191 0
+ 607 0028 0020     		movs	r0, #0
+ 608 002a FFF7FEFF 		bl	PWM_G_WriteCompare
+ 609              	.LVL65:
+ 192:main.c        ****     PWM_R_WriteCompare(255);
+ 610              		.loc 1 192 0
+ 611 002e FF20     		movs	r0, #255
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 16
+
+
+ 612 0030 FFF7FEFF 		bl	PWM_R_WriteCompare
+ 613              	.LVL66:
+ 193:main.c        ****     CyDelay(500);
+ 614              		.loc 1 193 0
+ 615 0034 4FF4FA70 		mov	r0, #500
+ 616 0038 FFF7FEFF 		bl	CyDelay
+ 617              	.LVL67:
+ 194:main.c        ****     PWM_R_WriteCompare(0);
+ 618              		.loc 1 194 0
+ 619 003c 0020     		movs	r0, #0
+ 620 003e FFF7FEFF 		bl	PWM_R_WriteCompare
+ 621              	.LVL68:
+ 622              	.L70:
+ 195:main.c        ****     
+ 196:main.c        ****     //The state machine. In every state it calls the right lightshows display function.
+ 197:main.c        ****     //The currentState is updated in the case block, so it is possible to detect in the state if we
+ 198:main.c        ****     for(;;)
+ 199:main.c        ****     {
+ 200:main.c        ****         //if we changed the state from audio turn off the ADC to prevent unnecessary interrupts and
+ 201:main.c        ****         if(nextState != Audio && currentState == Audio)
+ 623              		.loc 1 201 0
+ 624 0042 574B     		ldr	r3, .L72
+ 625 0044 9B7A     		ldrb	r3, [r3, #10]	@ zero_extendqisi2
+ 626 0046 032B     		cmp	r3, #3
+ 627 0048 05D0     		beq	.L45
+ 628              		.loc 1 201 0 is_stmt 0 discriminator 1
+ 629 004a 564B     		ldr	r3, .L72+4
+ 630 004c 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 631 004e 032B     		cmp	r3, #3
+ 632 0050 01D1     		bne	.L45
+ 202:main.c        ****             isr_ADC_Disable();
+ 633              		.loc 1 202 0 is_stmt 1
+ 634 0052 FFF7FEFF 		bl	isr_ADC_Disable
+ 635              	.LVL69:
+ 636              	.L45:
+ 203:main.c        ****             
+ 204:main.c        ****         //run the main state machine
+ 205:main.c        ****         //call the 'do' method of the currently displayed lightshow
+ 206:main.c        ****         switch(nextState){
+ 637              		.loc 1 206 0
+ 638 0056 524B     		ldr	r3, .L72
+ 639 0058 9B7A     		ldrb	r3, [r3, #10]	@ zero_extendqisi2
+ 640 005a 032B     		cmp	r3, #3
+ 641 005c 26D8     		bhi	.L46
+ 642 005e DFE803F0 		tbb	[pc, r3]
+ 643              	.L48:
+ 644 0062 02       		.byte	(.L47-.L48)/2
+ 645 0063 07       		.byte	(.L49-.L48)/2
+ 646 0064 0C       		.byte	(.L50-.L48)/2
+ 647 0065 11       		.byte	(.L51-.L48)/2
+ 648              		.p2align 1
+ 649              	.L47:
+ 207:main.c        ****             case Cycle:
+ 208:main.c        ****                 updateState();
+ 650              		.loc 1 208 0
+ 651 0066 FFF7FEFF 		bl	updateState
+ 652              	.LVL70:
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 17
+
+
+ 209:main.c        ****                 doCycle();
+ 653              		.loc 1 209 0
+ 654 006a FFF7FEFF 		bl	doCycle
+ 655              	.LVL71:
+ 210:main.c        ****                 break;
+ 656              		.loc 1 210 0
+ 657 006e 92E0     		b	.L52
+ 658              	.L49:
+ 211:main.c        ****             case RedGreenBlue:
+ 212:main.c        ****                 updateState();
+ 659              		.loc 1 212 0
+ 660 0070 FFF7FEFF 		bl	updateState
+ 661              	.LVL72:
+ 213:main.c        ****                 doRedGreenBlue();
+ 662              		.loc 1 213 0
+ 663 0074 FFF7FEFF 		bl	doRedGreenBlue
+ 664              	.LVL73:
+ 214:main.c        ****                 break;
+ 665              		.loc 1 214 0
+ 666 0078 8DE0     		b	.L52
+ 667              	.L50:
+ 215:main.c        ****              case Police:
+ 216:main.c        ****                 updateState();
+ 668              		.loc 1 216 0
+ 669 007a FFF7FEFF 		bl	updateState
+ 670              	.LVL74:
+ 217:main.c        ****                 doPolice();
+ 671              		.loc 1 217 0
+ 672 007e FFF7FEFF 		bl	doPolice
+ 673              	.LVL75:
+ 218:main.c        ****                 break;
+ 674              		.loc 1 218 0
+ 675 0082 88E0     		b	.L52
+ 676              	.L51:
+ 219:main.c        ****             case Audio:
+ 220:main.c        ****                 if(currentState != Audio){
+ 677              		.loc 1 220 0
+ 678 0084 474B     		ldr	r3, .L72+4
+ 679 0086 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 680 0088 032B     		cmp	r3, #3
+ 681 008a 06D0     		beq	.L54
+ 221:main.c        ****                     isr_ADC_Enable();
+ 682              		.loc 1 221 0
+ 683 008c FFF7FEFF 		bl	isr_ADC_Enable
+ 684              	.LVL76:
+ 222:main.c        ****                     setColor(0,0,0);
+ 685              		.loc 1 222 0
+ 686 0090 0022     		movs	r2, #0
+ 687 0092 1146     		mov	r1, r2
+ 688 0094 1046     		mov	r0, r2
+ 689 0096 FFF7FEFF 		bl	setColor
+ 690              	.LVL77:
+ 691              	.L54:
+ 223:main.c        ****                 }
+ 224:main.c        ****                 updateState();
+ 692              		.loc 1 224 0
+ 693 009a FFF7FEFF 		bl	updateState
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 18
+
+
+ 694              	.LVL78:
+ 225:main.c        ****                 isr_Timer_Disable();
+ 695              		.loc 1 225 0
+ 696 009e FFF7FEFF 		bl	isr_Timer_Disable
+ 697              	.LVL79:
+ 226:main.c        ****                 doAudio();
+ 698              		.loc 1 226 0
+ 699 00a2 FFF7FEFF 		bl	doAudio
+ 700              	.LVL80:
+ 227:main.c        ****                 isr_Timer_Enable();
+ 701              		.loc 1 227 0
+ 702 00a6 FFF7FEFF 		bl	isr_Timer_Enable
+ 703              	.LVL81:
+ 228:main.c        ****                 break;
+ 704              		.loc 1 228 0
+ 705 00aa 74E0     		b	.L52
+ 706              	.L46:
+ 229:main.c        ****             default:
+ 230:main.c        ****                 nextState = Cycle;
+ 707              		.loc 1 230 0
+ 708 00ac 0022     		movs	r2, #0
+ 709 00ae 3C4B     		ldr	r3, .L72
+ 710 00b0 9A72     		strb	r2, [r3, #10]
+ 231:main.c        ****                 updateState();
+ 711              		.loc 1 231 0
+ 712 00b2 FFF7FEFF 		bl	updateState
+ 713              	.LVL82:
+ 232:main.c        ****                 break;
+ 714              		.loc 1 232 0
+ 715 00b6 6EE0     		b	.L52
+ 716              	.L69:
+ 717              	.LBB7:
+ 233:main.c        ****         }
+ 234:main.c        ****         
+ 235:main.c        ****         //after each cycle read the UART input if there's data received
+ 236:main.c        ****         //change the next state or the input accordingly
+ 237:main.c        ****         while(UART_GetRxBufferSize()){
+ 238:main.c        ****             char c = UART_GetChar();
+ 718              		.loc 1 238 0
+ 719 00b8 FFF7FEFF 		bl	UART_GetChar
+ 720              	.LVL83:
+ 239:main.c        ****             if(c == 'T'){
+ 721              		.loc 1 239 0
+ 722 00bc 5428     		cmp	r0, #84
+ 723 00be 06D1     		bne	.L55
+ 240:main.c        ****                 terminalEnabled = true;
+ 724              		.loc 1 240 0
+ 725 00c0 0122     		movs	r2, #1
+ 726 00c2 394B     		ldr	r3, .L72+8
+ 727 00c4 1A70     		strb	r2, [r3]
+ 241:main.c        ****                 UART_PutString("Terminal control enabled\n\r");
+ 728              		.loc 1 241 0
+ 729 00c6 3948     		ldr	r0, .L72+12
+ 730              	.LVL84:
+ 731 00c8 FFF7FEFF 		bl	UART_PutString
+ 732              	.LVL85:
+ 733 00cc 63E0     		b	.L52
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 19
+
+
+ 734              	.LVL86:
+ 735              	.L55:
+ 242:main.c        ****             }else if(c == 'E'){
+ 736              		.loc 1 242 0
+ 737 00ce 4528     		cmp	r0, #69
+ 738 00d0 06D1     		bne	.L57
+ 243:main.c        ****                 terminalEnabled = false;
+ 739              		.loc 1 243 0
+ 740 00d2 0022     		movs	r2, #0
+ 741 00d4 344B     		ldr	r3, .L72+8
+ 742 00d6 1A70     		strb	r2, [r3]
+ 244:main.c        ****                 UART_PutString("Terminal control disabled\n\r");
+ 743              		.loc 1 244 0
+ 744 00d8 3548     		ldr	r0, .L72+16
+ 745              	.LVL87:
+ 746 00da FFF7FEFF 		bl	UART_PutString
+ 747              	.LVL88:
+ 748 00de 5AE0     		b	.L52
+ 749              	.LVL89:
+ 750              	.L57:
+ 245:main.c        ****             }else if(terminalEnabled){
+ 751              		.loc 1 245 0
+ 752 00e0 314B     		ldr	r3, .L72+8
+ 753 00e2 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 754 00e4 002B     		cmp	r3, #0
+ 755 00e6 56D0     		beq	.L52
+ 246:main.c        ****                 switch(c){
+ 756              		.loc 1 246 0
+ 757 00e8 4138     		subs	r0, r0, #65
+ 758              	.LVL90:
+ 759 00ea 1228     		cmp	r0, #18
+ 760 00ec 50D8     		bhi	.L58
+ 761 00ee DFE800F0 		tbb	[pc, r0]
+ 762              	.L60:
+ 763 00f2 1F       		.byte	(.L59-.L60)/2
+ 764 00f3 4F       		.byte	(.L58-.L60)/2
+ 765 00f4 0A       		.byte	(.L61-.L60)/2
+ 766 00f5 4F       		.byte	(.L58-.L60)/2
+ 767 00f6 4F       		.byte	(.L58-.L60)/2
+ 768 00f7 4F       		.byte	(.L58-.L60)/2
+ 769 00f8 4F       		.byte	(.L58-.L60)/2
+ 770 00f9 4F       		.byte	(.L58-.L60)/2
+ 771 00fa 4F       		.byte	(.L58-.L60)/2
+ 772 00fb 36       		.byte	(.L62-.L60)/2
+ 773 00fc 4F       		.byte	(.L58-.L60)/2
+ 774 00fd 4F       		.byte	(.L58-.L60)/2
+ 775 00fe 3D       		.byte	(.L63-.L60)/2
+ 776 00ff 26       		.byte	(.L64-.L60)/2
+ 777 0100 4F       		.byte	(.L58-.L60)/2
+ 778 0101 18       		.byte	(.L65-.L60)/2
+ 779 0102 4F       		.byte	(.L58-.L60)/2
+ 780 0103 11       		.byte	(.L66-.L60)/2
+ 781 0104 44       		.byte	(.L67-.L60)/2
+ 782 0105 00       		.p2align 1
+ 783              	.L61:
+ 247:main.c        ****                     case 'C': nextState = Cycle;
+ 784              		.loc 1 247 0
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 20
+
+
+ 785 0106 0022     		movs	r2, #0
+ 786 0108 254B     		ldr	r3, .L72
+ 787 010a 9A72     		strb	r2, [r3, #10]
+ 248:main.c        ****                               UART_PutString("Change to Cycle\n\r");
+ 788              		.loc 1 248 0
+ 789 010c 2948     		ldr	r0, .L72+20
+ 790 010e FFF7FEFF 		bl	UART_PutString
+ 791              	.LVL91:
+ 249:main.c        ****                         break;
+ 792              		.loc 1 249 0
+ 793 0112 40E0     		b	.L52
+ 794              	.L66:
+ 250:main.c        ****                     case 'R': nextState = RedGreenBlue;
+ 795              		.loc 1 250 0
+ 796 0114 0122     		movs	r2, #1
+ 797 0116 224B     		ldr	r3, .L72
+ 798 0118 9A72     		strb	r2, [r3, #10]
+ 251:main.c        ****                               UART_PutString("Change to RedGreenBlue\n\r");
+ 799              		.loc 1 251 0
+ 800 011a 2748     		ldr	r0, .L72+24
+ 801 011c FFF7FEFF 		bl	UART_PutString
+ 802              	.LVL92:
+ 252:main.c        ****                         break;
+ 803              		.loc 1 252 0
+ 804 0120 39E0     		b	.L52
+ 805              	.L65:
+ 253:main.c        ****                     case 'P': nextState = Police;
+ 806              		.loc 1 253 0
+ 807 0122 0222     		movs	r2, #2
+ 808 0124 1E4B     		ldr	r3, .L72
+ 809 0126 9A72     		strb	r2, [r3, #10]
+ 254:main.c        ****                               UART_PutString("Change to Police\n\r");
+ 810              		.loc 1 254 0
+ 811 0128 2448     		ldr	r0, .L72+28
+ 812 012a FFF7FEFF 		bl	UART_PutString
+ 813              	.LVL93:
+ 255:main.c        ****                         break;
+ 814              		.loc 1 255 0
+ 815 012e 32E0     		b	.L52
+ 816              	.L59:
+ 256:main.c        ****                     case 'A': nextState = Audio;
+ 817              		.loc 1 256 0
+ 818 0130 0322     		movs	r2, #3
+ 819 0132 1B4B     		ldr	r3, .L72
+ 820 0134 9A72     		strb	r2, [r3, #10]
+ 257:main.c        ****                               UART_PutString("Change to Audio\n\r");
+ 821              		.loc 1 257 0
+ 822 0136 2248     		ldr	r0, .L72+32
+ 823 0138 FFF7FEFF 		bl	UART_PutString
+ 824              	.LVL94:
+ 258:main.c        ****                         break;
+ 825              		.loc 1 258 0
+ 826 013c 2BE0     		b	.L52
+ 827              	.L64:
+ 259:main.c        ****                     case 'N': nextState = (currentState+1)%StateNo;
+ 828              		.loc 1 259 0
+ 829 013e 194B     		ldr	r3, .L72+4
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 21
+
+
+ 830 0140 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 831 0142 0133     		adds	r3, r3, #1
+ 832 0144 1F4A     		ldr	r2, .L72+36
+ 833 0146 1340     		ands	r3, r3, r2
+ 834 0148 03D5     		bpl	.L68
+ 835 014a 013B     		subs	r3, r3, #1
+ 836 014c 63F00303 		orn	r3, r3, #3
+ 837 0150 0133     		adds	r3, r3, #1
+ 838              	.L68:
+ 839 0152 134A     		ldr	r2, .L72
+ 840 0154 9372     		strb	r3, [r2, #10]
+ 260:main.c        ****                               UART_PutString("Change to next lightshow\n\r");
+ 841              		.loc 1 260 0
+ 842 0156 1C48     		ldr	r0, .L72+40
+ 843 0158 FFF7FEFF 		bl	UART_PutString
+ 844              	.LVL95:
+ 261:main.c        ****                         break;
+ 845              		.loc 1 261 0
+ 846 015c 1BE0     		b	.L52
+ 847              	.L62:
+ 262:main.c        ****                     case 'J': 
+ 263:main.c        ****                               setInput(Jack);
+ 848              		.loc 1 263 0
+ 849 015e 0120     		movs	r0, #1
+ 850 0160 FFF7FEFF 		bl	setInput
+ 851              	.LVL96:
+ 264:main.c        ****                               UART_PutString("Switch to jack\n\r");
+ 852              		.loc 1 264 0
+ 853 0164 1948     		ldr	r0, .L72+44
+ 854 0166 FFF7FEFF 		bl	UART_PutString
+ 855              	.LVL97:
+ 265:main.c        ****                         break;
+ 856              		.loc 1 265 0
+ 857 016a 14E0     		b	.L52
+ 858              	.L63:
+ 266:main.c        ****                     case 'M':
+ 267:main.c        ****                               setInput(Mic);
+ 859              		.loc 1 267 0
+ 860 016c 0020     		movs	r0, #0
+ 861 016e FFF7FEFF 		bl	setInput
+ 862              	.LVL98:
+ 268:main.c        ****                               UART_PutString("Switch to mic\n\r");
+ 863              		.loc 1 268 0
+ 864 0172 1748     		ldr	r0, .L72+48
+ 865 0174 FFF7FEFF 		bl	UART_PutString
+ 866              	.LVL99:
+ 269:main.c        ****                         break;
+ 867              		.loc 1 269 0
+ 868 0178 0DE0     		b	.L52
+ 869              	.L67:
+ 270:main.c        ****                     case 'S':
+ 271:main.c        ****                               setInput(!srcChannel);
+ 870              		.loc 1 271 0
+ 871 017a 094B     		ldr	r3, .L72
+ 872 017c 1878     		ldrb	r0, [r3]	@ zero_extendqisi2
+ 873 017e B0FA80F0 		clz	r0, r0
+ 874 0182 4009     		lsrs	r0, r0, #5
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 22
+
+
+ 875 0184 FFF7FEFF 		bl	setInput
+ 876              	.LVL100:
+ 272:main.c        ****                               UART_PutString("Switch input\n\r");
+ 877              		.loc 1 272 0
+ 878 0188 1248     		ldr	r0, .L72+52
+ 879 018a FFF7FEFF 		bl	UART_PutString
+ 880              	.LVL101:
+ 273:main.c        ****                         break;
+ 881              		.loc 1 273 0
+ 882 018e 02E0     		b	.L52
+ 883              	.L58:
+ 274:main.c        ****                     default:
+ 275:main.c        ****                         UART_PutString("Unknown command\n\r");
+ 884              		.loc 1 275 0
+ 885 0190 1148     		ldr	r0, .L72+56
+ 886 0192 FFF7FEFF 		bl	UART_PutString
+ 887              	.LVL102:
+ 888              	.L52:
+ 889              	.LBE7:
+ 237:main.c        ****             char c = UART_GetChar();
+ 890              		.loc 1 237 0
+ 891 0196 FFF7FEFF 		bl	UART_GetRxBufferSize
+ 892              	.LVL103:
+ 893 019a 0028     		cmp	r0, #0
+ 894 019c 8CD1     		bne	.L69
+ 895 019e 50E7     		b	.L70
+ 896              	.L73:
+ 897              		.align	2
+ 898              	.L72:
+ 899 01a0 00000000 		.word	.LANCHOR0
+ 900 01a4 00000000 		.word	currentState
+ 901 01a8 00000000 		.word	.LANCHOR1
+ 902 01ac 70000000 		.word	.LC5
+ 903 01b0 8C000000 		.word	.LC6
+ 904 01b4 A8000000 		.word	.LC7
+ 905 01b8 BC000000 		.word	.LC8
+ 906 01bc D8000000 		.word	.LC9
+ 907 01c0 EC000000 		.word	.LC10
+ 908 01c4 03000080 		.word	-2147483645
+ 909 01c8 00010000 		.word	.LC11
+ 910 01cc 1C010000 		.word	.LC12
+ 911 01d0 30010000 		.word	.LC13
+ 912 01d4 40010000 		.word	.LC14
+ 913 01d8 50010000 		.word	.LC15
+ 914              		.cfi_endproc
+ 915              	.LFE69:
+ 916              		.size	main, .-main
+ 917              		.global	srcChannel
+ 918              		.global	sw_srcStatus
+ 919              		.global	sw_modeStatus
+ 920              		.global	nextState
+ 921              		.comm	currentState,1,1
+ 922              		.global	terminalEnabled
+ 923              		.comm	buff,40,4
+ 924              		.data
+ 925              		.align	2
+ 926              		.set	.LANCHOR0,. + 0
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 23
+
+
+ 927              		.type	srcChannel, %object
+ 928              		.size	srcChannel, 1
+ 929              	srcChannel:
+ 930 0000 FF       		.byte	-1
+ 931 0001 000000   		.space	3
+ 932              		.type	sw_modePrev.7032, %object
+ 933              		.size	sw_modePrev.7032, 5
+ 934              	sw_modePrev.7032:
+ 935 0004 01       		.byte	1
+ 936 0005 01       		.byte	1
+ 937 0006 01       		.byte	1
+ 938 0007 01       		.byte	1
+ 939 0008 01       		.byte	1
+ 940              		.type	sw_modeStatus, %object
+ 941              		.size	sw_modeStatus, 1
+ 942              	sw_modeStatus:
+ 943 0009 01       		.byte	1
+ 944              		.type	nextState, %object
+ 945              		.size	nextState, 1
+ 946              	nextState:
+ 947 000a FF       		.byte	-1
+ 948 000b 00       		.space	1
+ 949              		.type	sw_srcPrev.7033, %object
+ 950              		.size	sw_srcPrev.7033, 5
+ 951              	sw_srcPrev.7033:
+ 952 000c 01       		.byte	1
+ 953 000d 01       		.byte	1
+ 954 000e 01       		.byte	1
+ 955 000f 01       		.byte	1
+ 956 0010 01       		.byte	1
+ 957              		.type	sw_srcStatus, %object
+ 958              		.size	sw_srcStatus, 1
+ 959              	sw_srcStatus:
+ 960 0011 01       		.byte	1
+ 961              		.section	.rodata.str1.4,"aMS",%progbits,1
+ 962              		.align	2
+ 963              	.LC0:
+ 964 0000 53746174 		.ascii	"State changed: %d\012\015\000"
+ 964      65206368 
+ 964      616E6765 
+ 964      643A2025 
+ 964      640A0D00 
+ 965              	.LC1:
+ 966 0014 53657475 		.ascii	"Setup running\012\015\000"
+ 966      70207275 
+ 966      6E6E696E 
+ 966      670A0D00 
+ 967              	.LC2:
+ 968 0024 496E6974 		.ascii	"Init state: %d\012\015\000"
+ 968      20737461 
+ 968      74653A20 
+ 968      25640A0D 
+ 968      00
+ 969 0035 000000   		.space	3
+ 970              	.LC3:
+ 971 0038 496E6974 		.ascii	"Init source: %d\012\015\000"
+ 971      20736F75 
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 24
+
+
+ 971      7263653A 
+ 971      2025640A 
+ 971      0D00
+ 972 004a 0000     		.space	2
+ 973              	.LC4:
+ 974 004c 53657475 		.ascii	"Setup done. Enabling Global IT\012\015\000"
+ 974      7020646F 
+ 974      6E652E20 
+ 974      456E6162 
+ 974      6C696E67 
+ 975 006d 000000   		.space	3
+ 976              	.LC5:
+ 977 0070 5465726D 		.ascii	"Terminal control enabled\012\015\000"
+ 977      696E616C 
+ 977      20636F6E 
+ 977      74726F6C 
+ 977      20656E61 
+ 978 008b 00       		.space	1
+ 979              	.LC6:
+ 980 008c 5465726D 		.ascii	"Terminal control disabled\012\015\000"
+ 980      696E616C 
+ 980      20636F6E 
+ 980      74726F6C 
+ 980      20646973 
+ 981              	.LC7:
+ 982 00a8 4368616E 		.ascii	"Change to Cycle\012\015\000"
+ 982      67652074 
+ 982      6F204379 
+ 982      636C650A 
+ 982      0D00
+ 983 00ba 0000     		.space	2
+ 984              	.LC8:
+ 985 00bc 4368616E 		.ascii	"Change to RedGreenBlue\012\015\000"
+ 985      67652074 
+ 985      6F205265 
+ 985      64477265 
+ 985      656E426C 
+ 986 00d5 000000   		.space	3
+ 987              	.LC9:
+ 988 00d8 4368616E 		.ascii	"Change to Police\012\015\000"
+ 988      67652074 
+ 988      6F20506F 
+ 988      6C696365 
+ 988      0A0D00
+ 989 00eb 00       		.space	1
+ 990              	.LC10:
+ 991 00ec 4368616E 		.ascii	"Change to Audio\012\015\000"
+ 991      67652074 
+ 991      6F204175 
+ 991      64696F0A 
+ 991      0D00
+ 992 00fe 0000     		.space	2
+ 993              	.LC11:
+ 994 0100 4368616E 		.ascii	"Change to next lightshow\012\015\000"
+ 994      67652074 
+ 994      6F206E65 
+ 994      7874206C 
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 25
+
+
+ 994      69676874 
+ 995 011b 00       		.space	1
+ 996              	.LC12:
+ 997 011c 53776974 		.ascii	"Switch to jack\012\015\000"
+ 997      63682074 
+ 997      6F206A61 
+ 997      636B0A0D 
+ 997      00
+ 998 012d 000000   		.space	3
+ 999              	.LC13:
+ 1000 0130 53776974 		.ascii	"Switch to mic\012\015\000"
+ 1000      63682074 
+ 1000      6F206D69 
+ 1000      630A0D00 
+ 1001              	.LC14:
+ 1002 0140 53776974 		.ascii	"Switch input\012\015\000"
+ 1002      63682069 
+ 1002      6E707574 
+ 1002      0A0D00
+ 1003 014f 00       		.space	1
+ 1004              	.LC15:
+ 1005 0150 556E6B6E 		.ascii	"Unknown command\012\015\000"
+ 1005      6F776E20 
+ 1005      636F6D6D 
+ 1005      616E640A 
+ 1005      0D00
+ 1006              		.bss
+ 1007              		.set	.LANCHOR1,. + 0
+ 1008              		.type	terminalEnabled, %object
+ 1009              		.size	terminalEnabled, 1
+ 1010              	terminalEnabled:
+ 1011 0000 00       		.space	1
+ 1012              		.type	i.7034, %object
+ 1013              		.size	i.7034, 1
+ 1014              	i.7034:
+ 1015 0001 00       		.space	1
+ 1016              		.text
+ 1017              	.Letext0:
+ 1018              		.file 2 "c:\\program files (x86)\\cypress\\psoc creator\\4.2\\psoc creator\\import\\gnu\\arm\\5.4.
+ 1019              		.file 3 "c:\\program files (x86)\\cypress\\psoc creator\\4.2\\psoc creator\\import\\gnu\\arm\\5.4.
+ 1020              		.file 4 "Generated_Source\\PSoC5/cytypes.h"
+ 1021              		.file 5 "ledlight.h"
+ 1022              		.file 6 "Generated_Source\\PSoC5/core_cm3.h"
+ 1023              		.file 7 "Generated_Source\\PSoC5/ADC.h"
+ 1024              		.file 8 "Generated_Source\\PSoC5/EEPROM.h"
+ 1025              		.file 9 "Generated_Source\\PSoC5/AMux_1.h"
+ 1026              		.file 10 "Generated_Source\\PSoC5/LED_JACK.h"
+ 1027              		.file 11 "Generated_Source\\PSoC5/LED_MIC.h"
+ 1028              		.file 12 "Generated_Source\\PSoC5/SW_mode.h"
+ 1029              		.file 13 "Generated_Source\\PSoC5/SW_src.h"
+ 1030              		.file 14 "c:\\program files (x86)\\cypress\\psoc creator\\4.2\\psoc creator\\import\\gnu\\arm\\5.4
+ 1031              		.file 15 "Generated_Source\\PSoC5/UART.h"
+ 1032              		.file 16 "Generated_Source\\PSoC5/isr_Timer.h"
+ 1033              		.file 17 "Generated_Source\\PSoC5/isr_ADC.h"
+ 1034              		.file 18 "Generated_Source\\PSoC5/opamp_1.h"
+ 1035              		.file 19 "Generated_Source\\PSoC5/PWM_B.h"
+ 1036              		.file 20 "Generated_Source\\PSoC5/PWM_R.h"
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 26
+
+
+ 1037              		.file 21 "Generated_Source\\PSoC5/PWM_G.h"
+ 1038              		.file 22 "Generated_Source\\PSoC5/Timer_1.h"
+ 1039              		.file 23 "Generated_Source\\PSoC5/CyLib.h"
+ 1040              		.section	.debug_info,"",%progbits
+ 1041              	.Ldebug_info0:
+ 1042 0000 B0090000 		.4byte	0x9b0
+ 1043 0004 0400     		.2byte	0x4
+ 1044 0006 00000000 		.4byte	.Ldebug_abbrev0
+ 1045 000a 04       		.byte	0x4
+ 1046 000b 01       		.uleb128 0x1
+ 1047 000c 37040000 		.4byte	.LASF89
+ 1048 0010 0C       		.byte	0xc
+ 1049 0011 6E030000 		.4byte	.LASF90
+ 1050 0015 67020000 		.4byte	.LASF91
+ 1051 0019 30000000 		.4byte	.Ldebug_ranges0+0x30
+ 1052 001d 00000000 		.4byte	0
+ 1053 0021 00000000 		.4byte	.Ldebug_line0
+ 1054 0025 02       		.uleb128 0x2
+ 1055 0026 01       		.byte	0x1
+ 1056 0027 06       		.byte	0x6
+ 1057 0028 FD010000 		.4byte	.LASF0
+ 1058 002c 02       		.uleb128 0x2
+ 1059 002d 01       		.byte	0x1
+ 1060 002e 08       		.byte	0x8
+ 1061 002f 72010000 		.4byte	.LASF1
+ 1062 0033 02       		.uleb128 0x2
+ 1063 0034 02       		.byte	0x2
+ 1064 0035 05       		.byte	0x5
+ 1065 0036 C6000000 		.4byte	.LASF2
+ 1066 003a 02       		.uleb128 0x2
+ 1067 003b 02       		.byte	0x2
+ 1068 003c 07       		.byte	0x7
+ 1069 003d 4D030000 		.4byte	.LASF3
+ 1070 0041 03       		.uleb128 0x3
+ 1071 0042 BA030000 		.4byte	.LASF9
+ 1072 0046 02       		.byte	0x2
+ 1073 0047 3F       		.byte	0x3f
+ 1074 0048 4C000000 		.4byte	0x4c
+ 1075 004c 02       		.uleb128 0x2
+ 1076 004d 04       		.byte	0x4
+ 1077 004e 05       		.byte	0x5
+ 1078 004f DF020000 		.4byte	.LASF4
+ 1079 0053 02       		.uleb128 0x2
+ 1080 0054 04       		.byte	0x4
+ 1081 0055 07       		.byte	0x7
+ 1082 0056 55020000 		.4byte	.LASF5
+ 1083 005a 02       		.uleb128 0x2
+ 1084 005b 08       		.byte	0x8
+ 1085 005c 05       		.byte	0x5
+ 1086 005d 2F010000 		.4byte	.LASF6
+ 1087 0061 02       		.uleb128 0x2
+ 1088 0062 08       		.byte	0x8
+ 1089 0063 07       		.byte	0x7
+ 1090 0064 11020000 		.4byte	.LASF7
+ 1091 0068 04       		.uleb128 0x4
+ 1092 0069 04       		.byte	0x4
+ 1093 006a 05       		.byte	0x5
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 27
+
+
+ 1094 006b 696E7400 		.ascii	"int\000"
+ 1095 006f 02       		.uleb128 0x2
+ 1096 0070 04       		.byte	0x4
+ 1097 0071 07       		.byte	0x7
+ 1098 0072 48020000 		.4byte	.LASF8
+ 1099 0076 03       		.uleb128 0x3
+ 1100 0077 09020000 		.4byte	.LASF10
+ 1101 007b 03       		.byte	0x3
+ 1102 007c 2C       		.byte	0x2c
+ 1103 007d 41000000 		.4byte	0x41
+ 1104 0081 05       		.uleb128 0x5
+ 1105 0082 F9000000 		.4byte	.LASF11
+ 1106 0086 04       		.byte	0x4
+ 1107 0087 E401     		.2byte	0x1e4
+ 1108 0089 2C000000 		.4byte	0x2c
+ 1109 008d 05       		.uleb128 0x5
+ 1110 008e EC000000 		.4byte	.LASF12
+ 1111 0092 04       		.byte	0x4
+ 1112 0093 E501     		.2byte	0x1e5
+ 1113 0095 3A000000 		.4byte	0x3a
+ 1114 0099 05       		.uleb128 0x5
+ 1115 009a F3000000 		.4byte	.LASF13
+ 1116 009e 04       		.byte	0x4
+ 1117 009f E801     		.2byte	0x1e8
+ 1118 00a1 33000000 		.4byte	0x33
+ 1119 00a5 02       		.uleb128 0x2
+ 1120 00a6 04       		.byte	0x4
+ 1121 00a7 04       		.byte	0x4
+ 1122 00a8 29010000 		.4byte	.LASF14
+ 1123 00ac 02       		.uleb128 0x2
+ 1124 00ad 08       		.byte	0x8
+ 1125 00ae 04       		.byte	0x4
+ 1126 00af 0E040000 		.4byte	.LASF15
+ 1127 00b3 05       		.uleb128 0x5
+ 1128 00b4 59010000 		.4byte	.LASF16
+ 1129 00b8 04       		.byte	0x4
+ 1130 00b9 F001     		.2byte	0x1f0
+ 1131 00bb 61000000 		.4byte	0x61
+ 1132 00bf 02       		.uleb128 0x2
+ 1133 00c0 01       		.byte	0x1
+ 1134 00c1 08       		.byte	0x8
+ 1135 00c2 D4020000 		.4byte	.LASF17
+ 1136 00c6 05       		.uleb128 0x5
+ 1137 00c7 75030000 		.4byte	.LASF18
+ 1138 00cb 04       		.byte	0x4
+ 1139 00cc 8E02     		.2byte	0x28e
+ 1140 00ce D2000000 		.4byte	0xd2
+ 1141 00d2 06       		.uleb128 0x6
+ 1142 00d3 81000000 		.4byte	0x81
+ 1143 00d7 02       		.uleb128 0x2
+ 1144 00d8 08       		.byte	0x8
+ 1145 00d9 04       		.byte	0x4
+ 1146 00da A1010000 		.4byte	.LASF19
+ 1147 00de 02       		.uleb128 0x2
+ 1148 00df 04       		.byte	0x4
+ 1149 00e0 07       		.byte	0x7
+ 1150 00e1 5F000000 		.4byte	.LASF20
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 28
+
+
+ 1151 00e5 07       		.uleb128 0x7
+ 1152 00e6 53000000 		.4byte	.LASF26
+ 1153 00ea 01       		.byte	0x1
+ 1154 00eb 2C000000 		.4byte	0x2c
+ 1155 00ef 05       		.byte	0x5
+ 1156 00f0 25       		.byte	0x25
+ 1157 00f1 14010000 		.4byte	0x114
+ 1158 00f5 08       		.uleb128 0x8
+ 1159 00f6 16030000 		.4byte	.LASF21
+ 1160 00fa 00       		.byte	0
+ 1161 00fb 08       		.uleb128 0x8
+ 1162 00fc 9D000000 		.4byte	.LASF22
+ 1163 0100 01       		.byte	0x1
+ 1164 0101 08       		.uleb128 0x8
+ 1165 0102 B6020000 		.4byte	.LASF23
+ 1166 0106 02       		.byte	0x2
+ 1167 0107 08       		.uleb128 0x8
+ 1168 0108 3D000000 		.4byte	.LASF24
+ 1169 010c 03       		.byte	0x3
+ 1170 010d 08       		.uleb128 0x8
+ 1171 010e 15040000 		.4byte	.LASF25
+ 1172 0112 04       		.byte	0x4
+ 1173 0113 00       		.byte	0
+ 1174 0114 03       		.uleb128 0x3
+ 1175 0115 53000000 		.4byte	.LASF26
+ 1176 0119 05       		.byte	0x5
+ 1177 011a 2B       		.byte	0x2b
+ 1178 011b E5000000 		.4byte	0xe5
+ 1179 011f 07       		.uleb128 0x7
+ 1180 0120 3B020000 		.4byte	.LASF27
+ 1181 0124 01       		.byte	0x1
+ 1182 0125 2C000000 		.4byte	0x2c
+ 1183 0129 01       		.byte	0x1
+ 1184 012a 2A       		.byte	0x2a
+ 1185 012b 3C010000 		.4byte	0x13c
+ 1186 012f 09       		.uleb128 0x9
+ 1187 0130 4D696300 		.ascii	"Mic\000"
+ 1188 0134 00       		.byte	0
+ 1189 0135 08       		.uleb128 0x8
+ 1190 0136 AD010000 		.4byte	.LASF28
+ 1191 013a 01       		.byte	0x1
+ 1192 013b 00       		.byte	0
+ 1193 013c 03       		.uleb128 0x3
+ 1194 013d 3B020000 		.4byte	.LASF27
+ 1195 0141 01       		.byte	0x1
+ 1196 0142 2D       		.byte	0x2d
+ 1197 0143 1F010000 		.4byte	0x11f
+ 1198 0147 0A       		.uleb128 0xa
+ 1199 0148 68000000 		.4byte	.LASF29
+ 1200 014c 01       		.byte	0x1
+ 1201 014d 81       		.byte	0x81
+ 1202 014e 00000000 		.4byte	.LFB67
+ 1203 0152 38000000 		.4byte	.LFE67-.LFB67
+ 1204 0156 01       		.uleb128 0x1
+ 1205 0157 9C       		.byte	0x9c
+ 1206 0158 66010000 		.4byte	0x166
+ 1207 015c 0B       		.uleb128 0xb
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 29
+
+
+ 1208 015d 12000000 		.4byte	.LVL0
+ 1209 0161 1C080000 		.4byte	0x81c
+ 1210 0165 00       		.byte	0
+ 1211 0166 0A       		.uleb128 0xa
+ 1212 0167 34000000 		.4byte	.LASF30
+ 1213 016b 01       		.byte	0x1
+ 1214 016c 34       		.byte	0x34
+ 1215 016d 00000000 		.4byte	.LFB64
+ 1216 0171 44000000 		.4byte	.LFE64-.LFB64
+ 1217 0175 01       		.uleb128 0x1
+ 1218 0176 9C       		.byte	0x9c
+ 1219 0177 B9010000 		.4byte	0x1b9
+ 1220 017b 0C       		.uleb128 0xc
+ 1221 017c 29030000 		.4byte	.LASF92
+ 1222 0180 01       		.byte	0x1
+ 1223 0181 34       		.byte	0x34
+ 1224 0182 3C010000 		.4byte	0x13c
+ 1225 0186 00000000 		.4byte	.LLST0
+ 1226 018a 0D       		.uleb128 0xd
+ 1227 018b 14000000 		.4byte	.LVL2
+ 1228 018f 27080000 		.4byte	0x827
+ 1229 0193 9D010000 		.4byte	0x19d
+ 1230 0197 0E       		.uleb128 0xe
+ 1231 0198 01       		.uleb128 0x1
+ 1232 0199 51       		.byte	0x51
+ 1233 019a 01       		.uleb128 0x1
+ 1234 019b 31       		.byte	0x31
+ 1235 019c 00       		.byte	0
+ 1236 019d 0B       		.uleb128 0xb
+ 1237 019e 1A000000 		.4byte	.LVL3
+ 1238 01a2 32080000 		.4byte	0x832
+ 1239 01a6 0B       		.uleb128 0xb
+ 1240 01a7 20000000 		.4byte	.LVL4
+ 1241 01ab 3D080000 		.4byte	0x83d
+ 1242 01af 0B       		.uleb128 0xb
+ 1243 01b0 38000000 		.4byte	.LVL5
+ 1244 01b4 48080000 		.4byte	0x848
+ 1245 01b8 00       		.byte	0
+ 1246 01b9 0A       		.uleb128 0xa
+ 1247 01ba 6A010000 		.4byte	.LASF31
+ 1248 01be 01       		.byte	0x1
+ 1249 01bf 4F       		.byte	0x4f
+ 1250 01c0 00000000 		.4byte	.LFB66
+ 1251 01c4 2C010000 		.4byte	.LFE66-.LFB66
+ 1252 01c8 01       		.uleb128 0x1
+ 1253 01c9 9C       		.byte	0x9c
+ 1254 01ca 71020000 		.4byte	0x271
+ 1255 01ce 0F       		.uleb128 0xf
+ 1256 01cf 87000000 		.4byte	.LASF32
+ 1257 01d3 01       		.byte	0x1
+ 1258 01d4 52       		.byte	0x52
+ 1259 01d5 71020000 		.4byte	0x271
+ 1260 01d9 05       		.uleb128 0x5
+ 1261 01da 03       		.byte	0x3
+ 1262 01db 04000000 		.4byte	sw_modePrev.7032
+ 1263 01df 0F       		.uleb128 0xf
+ 1264 01e0 12010000 		.4byte	.LASF33
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 30
+
+
+ 1265 01e4 01       		.byte	0x1
+ 1266 01e5 52       		.byte	0x52
+ 1267 01e6 71020000 		.4byte	0x271
+ 1268 01ea 05       		.uleb128 0x5
+ 1269 01eb 03       		.byte	0x3
+ 1270 01ec 0C000000 		.4byte	sw_srcPrev.7033
+ 1271 01f0 10       		.uleb128 0x10
+ 1272 01f1 6900     		.ascii	"i\000"
+ 1273 01f3 01       		.byte	0x1
+ 1274 01f4 53       		.byte	0x53
+ 1275 01f5 81000000 		.4byte	0x81
+ 1276 01f9 05       		.uleb128 0x5
+ 1277 01fa 03       		.byte	0x3
+ 1278 01fb 01000000 		.4byte	i.7034
+ 1279 01ff 11       		.uleb128 0x11
+ 1280 0200 24000000 		.4byte	.LBB2
+ 1281 0204 08010000 		.4byte	.LBE2-.LBB2
+ 1282 0208 12       		.uleb128 0x12
+ 1283 0209 28020000 		.4byte	.LASF34
+ 1284 020d 01       		.byte	0x1
+ 1285 020e 5B       		.byte	0x5b
+ 1286 020f 81020000 		.4byte	0x281
+ 1287 0213 2C000000 		.4byte	.LLST1
+ 1288 0217 12       		.uleb128 0x12
+ 1289 0218 BD020000 		.4byte	.LASF35
+ 1290 021c 01       		.byte	0x1
+ 1291 021d 6B       		.byte	0x6b
+ 1292 021e 81020000 		.4byte	0x281
+ 1293 0222 6C000000 		.4byte	.LLST2
+ 1294 0226 13       		.uleb128 0x13
+ 1295 0227 00000000 		.4byte	.Ldebug_ranges0+0
+ 1296 022b 3D020000 		.4byte	0x23d
+ 1297 022f 14       		.uleb128 0x14
+ 1298 0230 6900     		.ascii	"i\000"
+ 1299 0232 01       		.byte	0x1
+ 1300 0233 5D       		.byte	0x5d
+ 1301 0234 68000000 		.4byte	0x68
+ 1302 0238 AC000000 		.4byte	.LLST3
+ 1303 023c 00       		.byte	0
+ 1304 023d 13       		.uleb128 0x13
+ 1305 023e 18000000 		.4byte	.Ldebug_ranges0+0x18
+ 1306 0242 54020000 		.4byte	0x254
+ 1307 0246 14       		.uleb128 0x14
+ 1308 0247 6900     		.ascii	"i\000"
+ 1309 0249 01       		.byte	0x1
+ 1310 024a 6D       		.byte	0x6d
+ 1311 024b 68000000 		.4byte	0x68
+ 1312 024f CB000000 		.4byte	.LLST4
+ 1313 0253 00       		.byte	0
+ 1314 0254 0B       		.uleb128 0xb
+ 1315 0255 3C000000 		.4byte	.LVL7
+ 1316 0259 53080000 		.4byte	0x853
+ 1317 025d 0B       		.uleb128 0xb
+ 1318 025e AE000000 		.4byte	.LVL19
+ 1319 0262 5E080000 		.4byte	0x85e
+ 1320 0266 0B       		.uleb128 0xb
+ 1321 0267 F0000000 		.4byte	.LVL28
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 31
+
+
+ 1322 026b 66010000 		.4byte	0x166
+ 1323 026f 00       		.byte	0
+ 1324 0270 00       		.byte	0
+ 1325 0271 15       		.uleb128 0x15
+ 1326 0272 81020000 		.4byte	0x281
+ 1327 0276 81020000 		.4byte	0x281
+ 1328 027a 16       		.uleb128 0x16
+ 1329 027b DE000000 		.4byte	0xde
+ 1330 027f 04       		.byte	0x4
+ 1331 0280 00       		.byte	0
+ 1332 0281 02       		.uleb128 0x2
+ 1333 0282 01       		.byte	0x1
+ 1334 0283 02       		.byte	0x2
+ 1335 0284 D9020000 		.4byte	.LASF36
+ 1336 0288 17       		.uleb128 0x17
+ 1337 0289 1D010000 		.4byte	.LASF37
+ 1338 028d 01       		.byte	0x1
+ 1339 028e 41       		.byte	0x41
+ 1340 028f 00000000 		.4byte	.LFB65
+ 1341 0293 40000000 		.4byte	.LFE65-.LFB65
+ 1342 0297 01       		.uleb128 0x1
+ 1343 0298 9C       		.byte	0x9c
+ 1344 0299 DE020000 		.4byte	0x2de
+ 1345 029d 0D       		.uleb128 0xd
+ 1346 029e 18000000 		.4byte	.LVL31
+ 1347 02a2 27080000 		.4byte	0x827
+ 1348 02a6 B0020000 		.4byte	0x2b0
+ 1349 02aa 0E       		.uleb128 0xe
+ 1350 02ab 01       		.uleb128 0x1
+ 1351 02ac 51       		.byte	0x51
+ 1352 02ad 01       		.uleb128 0x1
+ 1353 02ae 30       		.byte	0x30
+ 1354 02af 00       		.byte	0
+ 1355 02b0 0D       		.uleb128 0xd
+ 1356 02b1 26000000 		.4byte	.LVL32
+ 1357 02b5 69080000 		.4byte	0x869
+ 1358 02b9 CD020000 		.4byte	0x2cd
+ 1359 02bd 0E       		.uleb128 0xe
+ 1360 02be 01       		.uleb128 0x1
+ 1361 02bf 50       		.byte	0x50
+ 1362 02c0 02       		.uleb128 0x2
+ 1363 02c1 74       		.byte	0x74
+ 1364 02c2 00       		.sleb128 0
+ 1365 02c3 0E       		.uleb128 0xe
+ 1366 02c4 01       		.uleb128 0x1
+ 1367 02c5 51       		.byte	0x51
+ 1368 02c6 05       		.uleb128 0x5
+ 1369 02c7 03       		.byte	0x3
+ 1370 02c8 00000000 		.4byte	.LC0
+ 1371 02cc 00       		.byte	0
+ 1372 02cd 18       		.uleb128 0x18
+ 1373 02ce 2C000000 		.4byte	.LVL33
+ 1374 02d2 74080000 		.4byte	0x874
+ 1375 02d6 0E       		.uleb128 0xe
+ 1376 02d7 01       		.uleb128 0x1
+ 1377 02d8 50       		.byte	0x50
+ 1378 02d9 02       		.uleb128 0x2
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 32
+
+
+ 1379 02da 74       		.byte	0x74
+ 1380 02db 00       		.sleb128 0
+ 1381 02dc 00       		.byte	0
+ 1382 02dd 00       		.byte	0
+ 1383 02de 17       		.uleb128 0x17
+ 1384 02df FE040000 		.4byte	.LASF38
+ 1385 02e3 01       		.byte	0x1
+ 1386 02e4 8C       		.byte	0x8c
+ 1387 02e5 00000000 		.4byte	.LFB68
+ 1388 02e9 B4000000 		.4byte	.LFE68-.LFB68
+ 1389 02ed 01       		.uleb128 0x1
+ 1390 02ee 9C       		.byte	0x9c
+ 1391 02ef 79040000 		.4byte	0x479
+ 1392 02f3 0B       		.uleb128 0xb
+ 1393 02f4 06000000 		.4byte	.LVL34
+ 1394 02f8 7F080000 		.4byte	0x87f
+ 1395 02fc 0D       		.uleb128 0xd
+ 1396 02fd 0C000000 		.4byte	.LVL35
+ 1397 0301 74080000 		.4byte	0x874
+ 1398 0305 13030000 		.4byte	0x313
+ 1399 0309 0E       		.uleb128 0xe
+ 1400 030a 01       		.uleb128 0x1
+ 1401 030b 50       		.byte	0x50
+ 1402 030c 05       		.uleb128 0x5
+ 1403 030d 03       		.byte	0x3
+ 1404 030e 14000000 		.4byte	.LC1
+ 1405 0312 00       		.byte	0
+ 1406 0313 0B       		.uleb128 0xb
+ 1407 0314 10000000 		.4byte	.LVL36
+ 1408 0318 8A080000 		.4byte	0x88a
+ 1409 031c 0D       		.uleb128 0xd
+ 1410 031d 16000000 		.4byte	.LVL37
+ 1411 0321 95080000 		.4byte	0x895
+ 1412 0325 33030000 		.4byte	0x333
+ 1413 0329 0E       		.uleb128 0xe
+ 1414 032a 01       		.uleb128 0x1
+ 1415 032b 50       		.byte	0x50
+ 1416 032c 05       		.uleb128 0x5
+ 1417 032d 03       		.byte	0x3
+ 1418 032e 00000000 		.4byte	TimerIT
+ 1419 0332 00       		.byte	0
+ 1420 0333 0D       		.uleb128 0xd
+ 1421 0334 1C000000 		.4byte	.LVL38
+ 1422 0338 A0080000 		.4byte	0x8a0
+ 1423 033c 4A030000 		.4byte	0x34a
+ 1424 0340 0E       		.uleb128 0xe
+ 1425 0341 01       		.uleb128 0x1
+ 1426 0342 50       		.byte	0x50
+ 1427 0343 05       		.uleb128 0x5
+ 1428 0344 03       		.byte	0x3
+ 1429 0345 00000000 		.4byte	AdcIT
+ 1430 0349 00       		.byte	0
+ 1431 034a 0B       		.uleb128 0xb
+ 1432 034b 20000000 		.4byte	.LVL39
+ 1433 034f AB080000 		.4byte	0x8ab
+ 1434 0353 0B       		.uleb128 0xb
+ 1435 0354 24000000 		.4byte	.LVL40
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 33
+
+
+ 1436 0358 B6080000 		.4byte	0x8b6
+ 1437 035c 0B       		.uleb128 0xb
+ 1438 035d 28000000 		.4byte	.LVL41
+ 1439 0361 C1080000 		.4byte	0x8c1
+ 1440 0365 0B       		.uleb128 0xb
+ 1441 0366 2C000000 		.4byte	.LVL42
+ 1442 036a CC080000 		.4byte	0x8cc
+ 1443 036e 0B       		.uleb128 0xb
+ 1444 036f 30000000 		.4byte	.LVL43
+ 1445 0373 D7080000 		.4byte	0x8d7
+ 1446 0377 0B       		.uleb128 0xb
+ 1447 0378 34000000 		.4byte	.LVL44
+ 1448 037c E2080000 		.4byte	0x8e2
+ 1449 0380 0D       		.uleb128 0xd
+ 1450 0381 3A000000 		.4byte	.LVL45
+ 1451 0385 ED080000 		.4byte	0x8ed
+ 1452 0389 93030000 		.4byte	0x393
+ 1453 038d 0E       		.uleb128 0xe
+ 1454 038e 01       		.uleb128 0x1
+ 1455 038f 50       		.byte	0x50
+ 1456 0390 01       		.uleb128 0x1
+ 1457 0391 30       		.byte	0x30
+ 1458 0392 00       		.byte	0
+ 1459 0393 0B       		.uleb128 0xb
+ 1460 0394 3E000000 		.4byte	.LVL46
+ 1461 0398 F8080000 		.4byte	0x8f8
+ 1462 039c 0D       		.uleb128 0xd
+ 1463 039d 44000000 		.4byte	.LVL47
+ 1464 03a1 03090000 		.4byte	0x903
+ 1465 03a5 AF030000 		.4byte	0x3af
+ 1466 03a9 0E       		.uleb128 0xe
+ 1467 03aa 01       		.uleb128 0x1
+ 1468 03ab 50       		.byte	0x50
+ 1469 03ac 01       		.uleb128 0x1
+ 1470 03ad 30       		.byte	0x30
+ 1471 03ae 00       		.byte	0
+ 1472 03af 0B       		.uleb128 0xb
+ 1473 03b0 48000000 		.4byte	.LVL48
+ 1474 03b4 0E090000 		.4byte	0x90e
+ 1475 03b8 0D       		.uleb128 0xd
+ 1476 03b9 4E000000 		.4byte	.LVL49
+ 1477 03bd 19090000 		.4byte	0x919
+ 1478 03c1 CB030000 		.4byte	0x3cb
+ 1479 03c5 0E       		.uleb128 0xe
+ 1480 03c6 01       		.uleb128 0x1
+ 1481 03c7 50       		.byte	0x50
+ 1482 03c8 01       		.uleb128 0x1
+ 1483 03c9 30       		.byte	0x30
+ 1484 03ca 00       		.byte	0
+ 1485 03cb 0B       		.uleb128 0xb
+ 1486 03cc 52000000 		.4byte	.LVL50
+ 1487 03d0 24090000 		.4byte	0x924
+ 1488 03d4 0D       		.uleb128 0xd
+ 1489 03d5 58000000 		.4byte	.LVL51
+ 1490 03d9 2F090000 		.4byte	0x92f
+ 1491 03dd E7030000 		.4byte	0x3e7
+ 1492 03e1 0E       		.uleb128 0xe
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 34
+
+
+ 1493 03e2 01       		.uleb128 0x1
+ 1494 03e3 50       		.byte	0x50
+ 1495 03e4 01       		.uleb128 0x1
+ 1496 03e5 30       		.byte	0x30
+ 1497 03e6 00       		.byte	0
+ 1498 03e7 0D       		.uleb128 0xd
+ 1499 03e8 68000000 		.4byte	.LVL52
+ 1500 03ec 69080000 		.4byte	0x869
+ 1501 03f0 04040000 		.4byte	0x404
+ 1502 03f4 0E       		.uleb128 0xe
+ 1503 03f5 01       		.uleb128 0x1
+ 1504 03f6 50       		.byte	0x50
+ 1505 03f7 02       		.uleb128 0x2
+ 1506 03f8 74       		.byte	0x74
+ 1507 03f9 00       		.sleb128 0
+ 1508 03fa 0E       		.uleb128 0xe
+ 1509 03fb 01       		.uleb128 0x1
+ 1510 03fc 51       		.byte	0x51
+ 1511 03fd 05       		.uleb128 0x5
+ 1512 03fe 03       		.byte	0x3
+ 1513 03ff 24000000 		.4byte	.LC2
+ 1514 0403 00       		.byte	0
+ 1515 0404 0D       		.uleb128 0xd
+ 1516 0405 6E000000 		.4byte	.LVL53
+ 1517 0409 74080000 		.4byte	0x874
+ 1518 040d 18040000 		.4byte	0x418
+ 1519 0411 0E       		.uleb128 0xe
+ 1520 0412 01       		.uleb128 0x1
+ 1521 0413 50       		.byte	0x50
+ 1522 0414 02       		.uleb128 0x2
+ 1523 0415 74       		.byte	0x74
+ 1524 0416 00       		.sleb128 0
+ 1525 0417 00       		.byte	0
+ 1526 0418 0D       		.uleb128 0xd
+ 1527 0419 74000000 		.4byte	.LVL54
+ 1528 041d 2F090000 		.4byte	0x92f
+ 1529 0421 2B040000 		.4byte	0x42b
+ 1530 0425 0E       		.uleb128 0xe
+ 1531 0426 01       		.uleb128 0x1
+ 1532 0427 50       		.byte	0x50
+ 1533 0428 01       		.uleb128 0x1
+ 1534 0429 31       		.byte	0x31
+ 1535 042a 00       		.byte	0
+ 1536 042b 0B       		.uleb128 0xb
+ 1537 042c 78000000 		.4byte	.LVL55
+ 1538 0430 66010000 		.4byte	0x166
+ 1539 0434 0D       		.uleb128 0xd
+ 1540 0435 82000000 		.4byte	.LVL56
+ 1541 0439 69080000 		.4byte	0x869
+ 1542 043d 51040000 		.4byte	0x451
+ 1543 0441 0E       		.uleb128 0xe
+ 1544 0442 01       		.uleb128 0x1
+ 1545 0443 50       		.byte	0x50
+ 1546 0444 02       		.uleb128 0x2
+ 1547 0445 74       		.byte	0x74
+ 1548 0446 00       		.sleb128 0
+ 1549 0447 0E       		.uleb128 0xe
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 35
+
+
+ 1550 0448 01       		.uleb128 0x1
+ 1551 0449 51       		.byte	0x51
+ 1552 044a 05       		.uleb128 0x5
+ 1553 044b 03       		.byte	0x3
+ 1554 044c 38000000 		.4byte	.LC3
+ 1555 0450 00       		.byte	0
+ 1556 0451 0D       		.uleb128 0xd
+ 1557 0452 88000000 		.4byte	.LVL57
+ 1558 0456 74080000 		.4byte	0x874
+ 1559 045a 65040000 		.4byte	0x465
+ 1560 045e 0E       		.uleb128 0xe
+ 1561 045f 01       		.uleb128 0x1
+ 1562 0460 50       		.byte	0x50
+ 1563 0461 02       		.uleb128 0x2
+ 1564 0462 74       		.byte	0x74
+ 1565 0463 00       		.sleb128 0
+ 1566 0464 00       		.byte	0
+ 1567 0465 18       		.uleb128 0x18
+ 1568 0466 8E000000 		.4byte	.LVL58
+ 1569 046a 74080000 		.4byte	0x874
+ 1570 046e 0E       		.uleb128 0xe
+ 1571 046f 01       		.uleb128 0x1
+ 1572 0470 50       		.byte	0x50
+ 1573 0471 05       		.uleb128 0x5
+ 1574 0472 03       		.byte	0x3
+ 1575 0473 4C000000 		.4byte	.LC4
+ 1576 0477 00       		.byte	0
+ 1577 0478 00       		.byte	0
+ 1578 0479 19       		.uleb128 0x19
+ 1579 047a 93000000 		.4byte	.LASF93
+ 1580 047e 01       		.byte	0x1
+ 1581 047f B6       		.byte	0xb6
+ 1582 0480 68000000 		.4byte	0x68
+ 1583 0484 00000000 		.4byte	.LFB69
+ 1584 0488 DC010000 		.4byte	.LFE69-.LFB69
+ 1585 048c 01       		.uleb128 0x1
+ 1586 048d 9C       		.byte	0x9c
+ 1587 048e 37070000 		.4byte	0x737
+ 1588 0492 1A       		.uleb128 0x1a
+ 1589 0493 B8000000 		.4byte	.LBB7
+ 1590 0497 DE000000 		.4byte	.LBE7-.LBB7
+ 1591 049b DE050000 		.4byte	0x5de
+ 1592 049f 14       		.uleb128 0x14
+ 1593 04a0 6300     		.ascii	"c\000"
+ 1594 04a2 01       		.byte	0x1
+ 1595 04a3 EE       		.byte	0xee
+ 1596 04a4 BF000000 		.4byte	0xbf
+ 1597 04a8 EA000000 		.4byte	.LLST5
+ 1598 04ac 0B       		.uleb128 0xb
+ 1599 04ad BC000000 		.4byte	.LVL83
+ 1600 04b1 3A090000 		.4byte	0x93a
+ 1601 04b5 0D       		.uleb128 0xd
+ 1602 04b6 CC000000 		.4byte	.LVL85
+ 1603 04ba 74080000 		.4byte	0x874
+ 1604 04be CC040000 		.4byte	0x4cc
+ 1605 04c2 0E       		.uleb128 0xe
+ 1606 04c3 01       		.uleb128 0x1
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 36
+
+
+ 1607 04c4 50       		.byte	0x50
+ 1608 04c5 05       		.uleb128 0x5
+ 1609 04c6 03       		.byte	0x3
+ 1610 04c7 70000000 		.4byte	.LC5
+ 1611 04cb 00       		.byte	0
+ 1612 04cc 0D       		.uleb128 0xd
+ 1613 04cd DE000000 		.4byte	.LVL88
+ 1614 04d1 74080000 		.4byte	0x874
+ 1615 04d5 E3040000 		.4byte	0x4e3
+ 1616 04d9 0E       		.uleb128 0xe
+ 1617 04da 01       		.uleb128 0x1
+ 1618 04db 50       		.byte	0x50
+ 1619 04dc 05       		.uleb128 0x5
+ 1620 04dd 03       		.byte	0x3
+ 1621 04de 8C000000 		.4byte	.LC6
+ 1622 04e2 00       		.byte	0
+ 1623 04e3 0D       		.uleb128 0xd
+ 1624 04e4 12010000 		.4byte	.LVL91
+ 1625 04e8 74080000 		.4byte	0x874
+ 1626 04ec FA040000 		.4byte	0x4fa
+ 1627 04f0 0E       		.uleb128 0xe
+ 1628 04f1 01       		.uleb128 0x1
+ 1629 04f2 50       		.byte	0x50
+ 1630 04f3 05       		.uleb128 0x5
+ 1631 04f4 03       		.byte	0x3
+ 1632 04f5 A8000000 		.4byte	.LC7
+ 1633 04f9 00       		.byte	0
+ 1634 04fa 0D       		.uleb128 0xd
+ 1635 04fb 20010000 		.4byte	.LVL92
+ 1636 04ff 74080000 		.4byte	0x874
+ 1637 0503 11050000 		.4byte	0x511
+ 1638 0507 0E       		.uleb128 0xe
+ 1639 0508 01       		.uleb128 0x1
+ 1640 0509 50       		.byte	0x50
+ 1641 050a 05       		.uleb128 0x5
+ 1642 050b 03       		.byte	0x3
+ 1643 050c BC000000 		.4byte	.LC8
+ 1644 0510 00       		.byte	0
+ 1645 0511 0D       		.uleb128 0xd
+ 1646 0512 2E010000 		.4byte	.LVL93
+ 1647 0516 74080000 		.4byte	0x874
+ 1648 051a 28050000 		.4byte	0x528
+ 1649 051e 0E       		.uleb128 0xe
+ 1650 051f 01       		.uleb128 0x1
+ 1651 0520 50       		.byte	0x50
+ 1652 0521 05       		.uleb128 0x5
+ 1653 0522 03       		.byte	0x3
+ 1654 0523 D8000000 		.4byte	.LC9
+ 1655 0527 00       		.byte	0
+ 1656 0528 0D       		.uleb128 0xd
+ 1657 0529 3C010000 		.4byte	.LVL94
+ 1658 052d 74080000 		.4byte	0x874
+ 1659 0531 3F050000 		.4byte	0x53f
+ 1660 0535 0E       		.uleb128 0xe
+ 1661 0536 01       		.uleb128 0x1
+ 1662 0537 50       		.byte	0x50
+ 1663 0538 05       		.uleb128 0x5
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 37
+
+
+ 1664 0539 03       		.byte	0x3
+ 1665 053a EC000000 		.4byte	.LC10
+ 1666 053e 00       		.byte	0
+ 1667 053f 0D       		.uleb128 0xd
+ 1668 0540 5C010000 		.4byte	.LVL95
+ 1669 0544 74080000 		.4byte	0x874
+ 1670 0548 56050000 		.4byte	0x556
+ 1671 054c 0E       		.uleb128 0xe
+ 1672 054d 01       		.uleb128 0x1
+ 1673 054e 50       		.byte	0x50
+ 1674 054f 05       		.uleb128 0x5
+ 1675 0550 03       		.byte	0x3
+ 1676 0551 00010000 		.4byte	.LC11
+ 1677 0555 00       		.byte	0
+ 1678 0556 0D       		.uleb128 0xd
+ 1679 0557 64010000 		.4byte	.LVL96
+ 1680 055b 66010000 		.4byte	0x166
+ 1681 055f 69050000 		.4byte	0x569
+ 1682 0563 0E       		.uleb128 0xe
+ 1683 0564 01       		.uleb128 0x1
+ 1684 0565 50       		.byte	0x50
+ 1685 0566 01       		.uleb128 0x1
+ 1686 0567 31       		.byte	0x31
+ 1687 0568 00       		.byte	0
+ 1688 0569 0D       		.uleb128 0xd
+ 1689 056a 6A010000 		.4byte	.LVL97
+ 1690 056e 74080000 		.4byte	0x874
+ 1691 0572 80050000 		.4byte	0x580
+ 1692 0576 0E       		.uleb128 0xe
+ 1693 0577 01       		.uleb128 0x1
+ 1694 0578 50       		.byte	0x50
+ 1695 0579 05       		.uleb128 0x5
+ 1696 057a 03       		.byte	0x3
+ 1697 057b 1C010000 		.4byte	.LC12
+ 1698 057f 00       		.byte	0
+ 1699 0580 0D       		.uleb128 0xd
+ 1700 0581 72010000 		.4byte	.LVL98
+ 1701 0585 66010000 		.4byte	0x166
+ 1702 0589 93050000 		.4byte	0x593
+ 1703 058d 0E       		.uleb128 0xe
+ 1704 058e 01       		.uleb128 0x1
+ 1705 058f 50       		.byte	0x50
+ 1706 0590 01       		.uleb128 0x1
+ 1707 0591 30       		.byte	0x30
+ 1708 0592 00       		.byte	0
+ 1709 0593 0D       		.uleb128 0xd
+ 1710 0594 78010000 		.4byte	.LVL99
+ 1711 0598 74080000 		.4byte	0x874
+ 1712 059c AA050000 		.4byte	0x5aa
+ 1713 05a0 0E       		.uleb128 0xe
+ 1714 05a1 01       		.uleb128 0x1
+ 1715 05a2 50       		.byte	0x50
+ 1716 05a3 05       		.uleb128 0x5
+ 1717 05a4 03       		.byte	0x3
+ 1718 05a5 30010000 		.4byte	.LC13
+ 1719 05a9 00       		.byte	0
+ 1720 05aa 0B       		.uleb128 0xb
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 38
+
+
+ 1721 05ab 88010000 		.4byte	.LVL100
+ 1722 05af 66010000 		.4byte	0x166
+ 1723 05b3 0D       		.uleb128 0xd
+ 1724 05b4 8E010000 		.4byte	.LVL101
+ 1725 05b8 74080000 		.4byte	0x874
+ 1726 05bc CA050000 		.4byte	0x5ca
+ 1727 05c0 0E       		.uleb128 0xe
+ 1728 05c1 01       		.uleb128 0x1
+ 1729 05c2 50       		.byte	0x50
+ 1730 05c3 05       		.uleb128 0x5
+ 1731 05c4 03       		.byte	0x3
+ 1732 05c5 40010000 		.4byte	.LC14
+ 1733 05c9 00       		.byte	0
+ 1734 05ca 18       		.uleb128 0x18
+ 1735 05cb 96010000 		.4byte	.LVL102
+ 1736 05cf 74080000 		.4byte	0x874
+ 1737 05d3 0E       		.uleb128 0xe
+ 1738 05d4 01       		.uleb128 0x1
+ 1739 05d5 50       		.byte	0x50
+ 1740 05d6 05       		.uleb128 0x5
+ 1741 05d7 03       		.byte	0x3
+ 1742 05d8 50010000 		.4byte	.LC15
+ 1743 05dc 00       		.byte	0
+ 1744 05dd 00       		.byte	0
+ 1745 05de 0B       		.uleb128 0xb
+ 1746 05df 06000000 		.4byte	.LVL59
+ 1747 05e3 DE020000 		.4byte	0x2de
+ 1748 05e7 0D       		.uleb128 0xd
+ 1749 05e8 0C000000 		.4byte	.LVL60
+ 1750 05ec ED080000 		.4byte	0x8ed
+ 1751 05f0 FB050000 		.4byte	0x5fb
+ 1752 05f4 0E       		.uleb128 0xe
+ 1753 05f5 01       		.uleb128 0x1
+ 1754 05f6 50       		.byte	0x50
+ 1755 05f7 02       		.uleb128 0x2
+ 1756 05f8 09       		.byte	0x9
+ 1757 05f9 FF       		.byte	0xff
+ 1758 05fa 00       		.byte	0
+ 1759 05fb 0D       		.uleb128 0xd
+ 1760 05fc 14000000 		.4byte	.LVL61
+ 1761 0600 45090000 		.4byte	0x945
+ 1762 0604 10060000 		.4byte	0x610
+ 1763 0608 0E       		.uleb128 0xe
+ 1764 0609 01       		.uleb128 0x1
+ 1765 060a 50       		.byte	0x50
+ 1766 060b 03       		.uleb128 0x3
+ 1767 060c 0A       		.byte	0xa
+ 1768 060d F401     		.2byte	0x1f4
+ 1769 060f 00       		.byte	0
+ 1770 0610 0D       		.uleb128 0xd
+ 1771 0611 1A000000 		.4byte	.LVL62
+ 1772 0615 ED080000 		.4byte	0x8ed
+ 1773 0619 23060000 		.4byte	0x623
+ 1774 061d 0E       		.uleb128 0xe
+ 1775 061e 01       		.uleb128 0x1
+ 1776 061f 50       		.byte	0x50
+ 1777 0620 01       		.uleb128 0x1
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 39
+
+
+ 1778 0621 30       		.byte	0x30
+ 1779 0622 00       		.byte	0
+ 1780 0623 0D       		.uleb128 0xd
+ 1781 0624 20000000 		.4byte	.LVL63
+ 1782 0628 19090000 		.4byte	0x919
+ 1783 062c 37060000 		.4byte	0x637
+ 1784 0630 0E       		.uleb128 0xe
+ 1785 0631 01       		.uleb128 0x1
+ 1786 0632 50       		.byte	0x50
+ 1787 0633 02       		.uleb128 0x2
+ 1788 0634 09       		.byte	0x9
+ 1789 0635 FF       		.byte	0xff
+ 1790 0636 00       		.byte	0
+ 1791 0637 0D       		.uleb128 0xd
+ 1792 0638 28000000 		.4byte	.LVL64
+ 1793 063c 45090000 		.4byte	0x945
+ 1794 0640 4C060000 		.4byte	0x64c
+ 1795 0644 0E       		.uleb128 0xe
+ 1796 0645 01       		.uleb128 0x1
+ 1797 0646 50       		.byte	0x50
+ 1798 0647 03       		.uleb128 0x3
+ 1799 0648 0A       		.byte	0xa
+ 1800 0649 F401     		.2byte	0x1f4
+ 1801 064b 00       		.byte	0
+ 1802 064c 0D       		.uleb128 0xd
+ 1803 064d 2E000000 		.4byte	.LVL65
+ 1804 0651 19090000 		.4byte	0x919
+ 1805 0655 5F060000 		.4byte	0x65f
+ 1806 0659 0E       		.uleb128 0xe
+ 1807 065a 01       		.uleb128 0x1
+ 1808 065b 50       		.byte	0x50
+ 1809 065c 01       		.uleb128 0x1
+ 1810 065d 30       		.byte	0x30
+ 1811 065e 00       		.byte	0
+ 1812 065f 0D       		.uleb128 0xd
+ 1813 0660 34000000 		.4byte	.LVL66
+ 1814 0664 03090000 		.4byte	0x903
+ 1815 0668 73060000 		.4byte	0x673
+ 1816 066c 0E       		.uleb128 0xe
+ 1817 066d 01       		.uleb128 0x1
+ 1818 066e 50       		.byte	0x50
+ 1819 066f 02       		.uleb128 0x2
+ 1820 0670 09       		.byte	0x9
+ 1821 0671 FF       		.byte	0xff
+ 1822 0672 00       		.byte	0
+ 1823 0673 0D       		.uleb128 0xd
+ 1824 0674 3C000000 		.4byte	.LVL67
+ 1825 0678 45090000 		.4byte	0x945
+ 1826 067c 88060000 		.4byte	0x688
+ 1827 0680 0E       		.uleb128 0xe
+ 1828 0681 01       		.uleb128 0x1
+ 1829 0682 50       		.byte	0x50
+ 1830 0683 03       		.uleb128 0x3
+ 1831 0684 0A       		.byte	0xa
+ 1832 0685 F401     		.2byte	0x1f4
+ 1833 0687 00       		.byte	0
+ 1834 0688 0D       		.uleb128 0xd
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 40
+
+
+ 1835 0689 42000000 		.4byte	.LVL68
+ 1836 068d 03090000 		.4byte	0x903
+ 1837 0691 9B060000 		.4byte	0x69b
+ 1838 0695 0E       		.uleb128 0xe
+ 1839 0696 01       		.uleb128 0x1
+ 1840 0697 50       		.byte	0x50
+ 1841 0698 01       		.uleb128 0x1
+ 1842 0699 30       		.byte	0x30
+ 1843 069a 00       		.byte	0
+ 1844 069b 0B       		.uleb128 0xb
+ 1845 069c 56000000 		.4byte	.LVL69
+ 1846 06a0 CC080000 		.4byte	0x8cc
+ 1847 06a4 0B       		.uleb128 0xb
+ 1848 06a5 6A000000 		.4byte	.LVL70
+ 1849 06a9 88020000 		.4byte	0x288
+ 1850 06ad 0B       		.uleb128 0xb
+ 1851 06ae 6E000000 		.4byte	.LVL71
+ 1852 06b2 50090000 		.4byte	0x950
+ 1853 06b6 0B       		.uleb128 0xb
+ 1854 06b7 74000000 		.4byte	.LVL72
+ 1855 06bb 88020000 		.4byte	0x288
+ 1856 06bf 0B       		.uleb128 0xb
+ 1857 06c0 78000000 		.4byte	.LVL73
+ 1858 06c4 5B090000 		.4byte	0x95b
+ 1859 06c8 0B       		.uleb128 0xb
+ 1860 06c9 7E000000 		.4byte	.LVL74
+ 1861 06cd 88020000 		.4byte	0x288
+ 1862 06d1 0B       		.uleb128 0xb
+ 1863 06d2 82000000 		.4byte	.LVL75
+ 1864 06d6 66090000 		.4byte	0x966
+ 1865 06da 0B       		.uleb128 0xb
+ 1866 06db 90000000 		.4byte	.LVL76
+ 1867 06df 71090000 		.4byte	0x971
+ 1868 06e3 0D       		.uleb128 0xd
+ 1869 06e4 9A000000 		.4byte	.LVL77
+ 1870 06e8 7C090000 		.4byte	0x97c
+ 1871 06ec 00070000 		.4byte	0x700
+ 1872 06f0 0E       		.uleb128 0xe
+ 1873 06f1 01       		.uleb128 0x1
+ 1874 06f2 50       		.byte	0x50
+ 1875 06f3 01       		.uleb128 0x1
+ 1876 06f4 30       		.byte	0x30
+ 1877 06f5 0E       		.uleb128 0xe
+ 1878 06f6 01       		.uleb128 0x1
+ 1879 06f7 51       		.byte	0x51
+ 1880 06f8 01       		.uleb128 0x1
+ 1881 06f9 30       		.byte	0x30
+ 1882 06fa 0E       		.uleb128 0xe
+ 1883 06fb 01       		.uleb128 0x1
+ 1884 06fc 52       		.byte	0x52
+ 1885 06fd 01       		.uleb128 0x1
+ 1886 06fe 30       		.byte	0x30
+ 1887 06ff 00       		.byte	0
+ 1888 0700 0B       		.uleb128 0xb
+ 1889 0701 9E000000 		.4byte	.LVL78
+ 1890 0705 88020000 		.4byte	0x288
+ 1891 0709 0B       		.uleb128 0xb
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 41
+
+
+ 1892 070a A2000000 		.4byte	.LVL79
+ 1893 070e 87090000 		.4byte	0x987
+ 1894 0712 0B       		.uleb128 0xb
+ 1895 0713 A6000000 		.4byte	.LVL80
+ 1896 0717 92090000 		.4byte	0x992
+ 1897 071b 0B       		.uleb128 0xb
+ 1898 071c AA000000 		.4byte	.LVL81
+ 1899 0720 9D090000 		.4byte	0x99d
+ 1900 0724 0B       		.uleb128 0xb
+ 1901 0725 B6000000 		.4byte	.LVL82
+ 1902 0729 88020000 		.4byte	0x288
+ 1903 072d 0B       		.uleb128 0xb
+ 1904 072e 9A010000 		.4byte	.LVL103
+ 1905 0732 A8090000 		.4byte	0x9a8
+ 1906 0736 00       		.byte	0
+ 1907 0737 1B       		.uleb128 0x1b
+ 1908 0738 2A040000 		.4byte	.LASF39
+ 1909 073c 06       		.byte	0x6
+ 1910 073d 1207     		.2byte	0x712
+ 1911 073f 43070000 		.4byte	0x743
+ 1912 0743 06       		.uleb128 0x6
+ 1913 0744 76000000 		.4byte	0x76
+ 1914 0748 1C       		.uleb128 0x1c
+ 1915 0749 80010000 		.4byte	.LASF40
+ 1916 074d 05       		.byte	0x5
+ 1917 074e 15       		.byte	0x15
+ 1918 074f 81020000 		.4byte	0x281
+ 1919 0753 1C       		.uleb128 0x1c
+ 1920 0754 52010000 		.4byte	.LASF41
+ 1921 0758 05       		.byte	0x5
+ 1922 0759 18       		.byte	0x18
+ 1923 075a B3000000 		.4byte	0xb3
+ 1924 075e 15       		.uleb128 0x15
+ 1925 075f 99000000 		.4byte	0x99
+ 1926 0763 74070000 		.4byte	0x774
+ 1927 0767 16       		.uleb128 0x16
+ 1928 0768 DE000000 		.4byte	0xde
+ 1929 076c 01       		.byte	0x1
+ 1930 076d 16       		.uleb128 0x16
+ 1931 076e DE000000 		.4byte	0xde
+ 1932 0772 FF       		.byte	0xff
+ 1933 0773 00       		.byte	0
+ 1934 0774 1C       		.uleb128 0x1c
+ 1935 0775 F4040000 		.4byte	.LASF42
+ 1936 0779 05       		.byte	0x5
+ 1937 077a 1B       		.byte	0x1b
+ 1938 077b 5E070000 		.4byte	0x75e
+ 1939 077f 1C       		.uleb128 0x1c
+ 1940 0780 D9040000 		.4byte	.LASF43
+ 1941 0784 05       		.byte	0x5
+ 1942 0785 1E       		.byte	0x1e
+ 1943 0786 81000000 		.4byte	0x81
+ 1944 078a 1C       		.uleb128 0x1c
+ 1945 078b E0030000 		.4byte	.LASF44
+ 1946 078f 05       		.byte	0x5
+ 1947 0790 21       		.byte	0x21
+ 1948 0791 8D000000 		.4byte	0x8d
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 42
+
+
+ 1949 0795 15       		.uleb128 0x15
+ 1950 0796 BF000000 		.4byte	0xbf
+ 1951 079a A5070000 		.4byte	0x7a5
+ 1952 079e 16       		.uleb128 0x16
+ 1953 079f DE000000 		.4byte	0xde
+ 1954 07a3 27       		.byte	0x27
+ 1955 07a4 00       		.byte	0
+ 1956 07a5 1D       		.uleb128 0x1d
+ 1957 07a6 98000000 		.4byte	.LASF45
+ 1958 07aa 01       		.byte	0x1
+ 1959 07ab 16       		.byte	0x16
+ 1960 07ac 95070000 		.4byte	0x795
+ 1961 07b0 05       		.uleb128 0x5
+ 1962 07b1 03       		.byte	0x3
+ 1963 07b2 00000000 		.4byte	buff
+ 1964 07b6 1D       		.uleb128 0x1d
+ 1965 07b7 FE030000 		.4byte	.LASF46
+ 1966 07bb 01       		.byte	0x1
+ 1967 07bc 19       		.byte	0x19
+ 1968 07bd 81020000 		.4byte	0x281
+ 1969 07c1 05       		.uleb128 0x5
+ 1970 07c2 03       		.byte	0x3
+ 1971 07c3 00000000 		.4byte	terminalEnabled
+ 1972 07c7 1D       		.uleb128 0x1d
+ 1973 07c8 09030000 		.4byte	.LASF47
+ 1974 07cc 01       		.byte	0x1
+ 1975 07cd 1C       		.byte	0x1c
+ 1976 07ce 14010000 		.4byte	0x114
+ 1977 07d2 05       		.uleb128 0x5
+ 1978 07d3 03       		.byte	0x3
+ 1979 07d4 00000000 		.4byte	currentState
+ 1980 07d8 1D       		.uleb128 0x1d
+ 1981 07d9 60010000 		.4byte	.LASF48
+ 1982 07dd 01       		.byte	0x1
+ 1983 07de 1F       		.byte	0x1f
+ 1984 07df 14010000 		.4byte	0x114
+ 1985 07e3 05       		.uleb128 0x5
+ 1986 07e4 03       		.byte	0x3
+ 1987 07e5 00000000 		.4byte	nextState
+ 1988 07e9 1D       		.uleb128 0x1d
+ 1989 07ea E8020000 		.4byte	.LASF49
+ 1990 07ee 01       		.byte	0x1
+ 1991 07ef 23       		.byte	0x23
+ 1992 07f0 81020000 		.4byte	0x281
+ 1993 07f4 05       		.uleb128 0x5
+ 1994 07f5 03       		.byte	0x3
+ 1995 07f6 00000000 		.4byte	sw_modeStatus
+ 1996 07fa 1D       		.uleb128 0x1d
+ 1997 07fb 1D040000 		.4byte	.LASF50
+ 1998 07ff 01       		.byte	0x1
+ 1999 0800 27       		.byte	0x27
+ 2000 0801 81020000 		.4byte	0x281
+ 2001 0805 05       		.uleb128 0x5
+ 2002 0806 03       		.byte	0x3
+ 2003 0807 00000000 		.4byte	sw_srcStatus
+ 2004 080b 1D       		.uleb128 0x1d
+ 2005 080c 47010000 		.4byte	.LASF51
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 43
+
+
+ 2006 0810 01       		.byte	0x1
+ 2007 0811 30       		.byte	0x30
+ 2008 0812 3C010000 		.4byte	0x13c
+ 2009 0816 05       		.uleb128 0x5
+ 2010 0817 03       		.byte	0x3
+ 2011 0818 00000000 		.4byte	srcChannel
+ 2012 081c 1E       		.uleb128 0x1e
+ 2013 081d 12000000 		.4byte	.LASF52
+ 2014 0821 12000000 		.4byte	.LASF52
+ 2015 0825 07       		.byte	0x7
+ 2016 0826 42       		.byte	0x42
+ 2017 0827 1E       		.uleb128 0x1e
+ 2018 0828 E3040000 		.4byte	.LASF53
+ 2019 082c E3040000 		.4byte	.LASF53
+ 2020 0830 08       		.byte	0x8
+ 2021 0831 21       		.byte	0x21
+ 2022 0832 1E       		.uleb128 0x1e
+ 2023 0833 22000000 		.4byte	.LASF54
+ 2024 0837 22000000 		.4byte	.LASF54
+ 2025 083b 09       		.byte	0x9
+ 2026 083c 27       		.byte	0x27
+ 2027 083d 1E       		.uleb128 0x1e
+ 2028 083e D1010000 		.4byte	.LASF55
+ 2029 0842 D1010000 		.4byte	.LASF55
+ 2030 0846 0A       		.byte	0xa
+ 2031 0847 26       		.byte	0x26
+ 2032 0848 1E       		.uleb128 0x1e
+ 2033 0849 3F030000 		.4byte	.LASF56
+ 2034 084d 3F030000 		.4byte	.LASF56
+ 2035 0851 0B       		.byte	0xb
+ 2036 0852 26       		.byte	0x26
+ 2037 0853 1E       		.uleb128 0x1e
+ 2038 0854 AA000000 		.4byte	.LASF57
+ 2039 0858 AA000000 		.4byte	.LASF57
+ 2040 085c 0C       		.byte	0xc
+ 2041 085d 29       		.byte	0x29
+ 2042 085e 1E       		.uleb128 0x1e
+ 2043 085f D4030000 		.4byte	.LASF58
+ 2044 0863 D4030000 		.4byte	.LASF58
+ 2045 0867 0D       		.byte	0xd
+ 2046 0868 29       		.byte	0x29
+ 2047 0869 1E       		.uleb128 0x1e
+ 2048 086a 33020000 		.4byte	.LASF59
+ 2049 086e 33020000 		.4byte	.LASF59
+ 2050 0872 0E       		.byte	0xe
+ 2051 0873 E7       		.byte	0xe7
+ 2052 0874 1E       		.uleb128 0x1e
+ 2053 0875 DD000000 		.4byte	.LASF60
+ 2054 0879 DD000000 		.4byte	.LASF60
+ 2055 087d 0F       		.byte	0xf
+ 2056 087e 8B       		.byte	0x8b
+ 2057 087f 1E       		.uleb128 0x1e
+ 2058 0880 87010000 		.4byte	.LASF61
+ 2059 0884 87010000 		.4byte	.LASF61
+ 2060 0888 0F       		.byte	0xf
+ 2061 0889 54       		.byte	0x54
+ 2062 088a 1E       		.uleb128 0x1e
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 44
+
+
+ 2063 088b 1C030000 		.4byte	.LASF62
+ 2064 088f 1C030000 		.4byte	.LASF62
+ 2065 0893 08       		.byte	0x8
+ 2066 0894 1F       		.byte	0x1f
+ 2067 0895 1E       		.uleb128 0x1e
+ 2068 0896 93030000 		.4byte	.LASF63
+ 2069 089a 93030000 		.4byte	.LASF63
+ 2070 089e 10       		.byte	0x10
+ 2071 089f 18       		.byte	0x18
+ 2072 08a0 1E       		.uleb128 0x1e
+ 2073 08a1 C4030000 		.4byte	.LASF64
+ 2074 08a5 C4030000 		.4byte	.LASF64
+ 2075 08a9 11       		.byte	0x11
+ 2076 08aa 18       		.byte	0x18
+ 2077 08ab 1E       		.uleb128 0x1e
+ 2078 08ac 60030000 		.4byte	.LASF65
+ 2079 08b0 60030000 		.4byte	.LASF65
+ 2080 08b4 12       		.byte	0x12
+ 2081 08b5 33       		.byte	0x33
+ 2082 08b6 1E       		.uleb128 0x1e
+ 2083 08b7 C7020000 		.4byte	.LASF66
+ 2084 08bb C7020000 		.4byte	.LASF66
+ 2085 08bf 09       		.byte	0x9
+ 2086 08c0 25       		.byte	0x25
+ 2087 08c1 1E       		.uleb128 0x1e
+ 2088 08c2 3D010000 		.4byte	.LASF67
+ 2089 08c6 3D010000 		.4byte	.LASF67
+ 2090 08ca 07       		.byte	0x7
+ 2091 08cb 3A       		.byte	0x3a
+ 2092 08cc 1E       		.uleb128 0x1e
+ 2093 08cd 7A030000 		.4byte	.LASF68
+ 2094 08d1 7A030000 		.4byte	.LASF68
+ 2095 08d5 11       		.byte	0x11
+ 2096 08d6 25       		.byte	0x25
+ 2097 08d7 1E       		.uleb128 0x1e
+ 2098 08d8 ED030000 		.4byte	.LASF69
+ 2099 08dc ED030000 		.4byte	.LASF69
+ 2100 08e0 07       		.byte	0x7
+ 2101 08e1 3D       		.byte	0x3d
+ 2102 08e2 1E       		.uleb128 0x1e
+ 2103 08e3 A5030000 		.4byte	.LASF70
+ 2104 08e7 A5030000 		.4byte	.LASF70
+ 2105 08eb 13       		.byte	0x13
+ 2106 08ec 92       		.byte	0x92
+ 2107 08ed 1E       		.uleb128 0x1e
+ 2108 08ee B2010000 		.4byte	.LASF71
+ 2109 08f2 B2010000 		.4byte	.LASF71
+ 2110 08f6 13       		.byte	0x13
+ 2111 08f7 C3       		.byte	0xc3
+ 2112 08f8 1E       		.uleb128 0x1e
+ 2113 08f9 CD040000 		.4byte	.LASF72
+ 2114 08fd CD040000 		.4byte	.LASF72
+ 2115 0901 14       		.byte	0x14
+ 2116 0902 92       		.byte	0x92
+ 2117 0903 1E       		.uleb128 0x1e
+ 2118 0904 F6020000 		.4byte	.LASF73
+ 2119 0908 F6020000 		.4byte	.LASF73
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 45
+
+
+ 2120 090c 14       		.byte	0x14
+ 2121 090d C3       		.byte	0xc3
+ 2122 090e 1E       		.uleb128 0x1e
+ 2123 090f C5010000 		.4byte	.LASF74
+ 2124 0913 C5010000 		.4byte	.LASF74
+ 2125 0917 15       		.byte	0x15
+ 2126 0918 92       		.byte	0x92
+ 2127 0919 1E       		.uleb128 0x1e
+ 2128 091a FF000000 		.4byte	.LASF75
+ 2129 091e FF000000 		.4byte	.LASF75
+ 2130 0922 15       		.byte	0x15
+ 2131 0923 C3       		.byte	0xc3
+ 2132 0924 1E       		.uleb128 0x1e
+ 2133 0925 31030000 		.4byte	.LASF76
+ 2134 0929 31030000 		.4byte	.LASF76
+ 2135 092d 16       		.byte	0x16
+ 2136 092e 5A       		.byte	0x5a
+ 2137 092f 1E       		.uleb128 0x1e
+ 2138 0930 43000000 		.4byte	.LASF77
+ 2139 0934 43000000 		.4byte	.LASF77
+ 2140 0938 08       		.byte	0x8
+ 2141 0939 23       		.byte	0x23
+ 2142 093a 1E       		.uleb128 0x1e
+ 2143 093b D0000000 		.4byte	.LASF78
+ 2144 093f D0000000 		.4byte	.LASF78
+ 2145 0943 0F       		.byte	0xf
+ 2146 0944 71       		.byte	0x71
+ 2147 0945 1E       		.uleb128 0x1e
+ 2148 0946 C5040000 		.4byte	.LASF79
+ 2149 094a C5040000 		.4byte	.LASF79
+ 2150 094e 17       		.byte	0x17
+ 2151 094f 76       		.byte	0x76
+ 2152 0950 1E       		.uleb128 0x1e
+ 2153 0951 7F000000 		.4byte	.LASF80
+ 2154 0955 7F000000 		.4byte	.LASF80
+ 2155 0959 05       		.byte	0x5
+ 2156 095a 30       		.byte	0x30
+ 2157 095b 1E       		.uleb128 0x1e
+ 2158 095c B7000000 		.4byte	.LASF81
+ 2159 0960 B7000000 		.4byte	.LASF81
+ 2160 0964 05       		.byte	0x5
+ 2161 0965 32       		.byte	0x32
+ 2162 0966 1E       		.uleb128 0x1e
+ 2163 0967 B1030000 		.4byte	.LASF82
+ 2164 096b B1030000 		.4byte	.LASF82
+ 2165 096f 05       		.byte	0x5
+ 2166 0970 33       		.byte	0x33
+ 2167 0971 1E       		.uleb128 0x1e
+ 2168 0972 92010000 		.4byte	.LASF83
+ 2169 0976 92010000 		.4byte	.LASF83
+ 2170 097a 11       		.byte	0x11
+ 2171 097b 23       		.byte	0x23
+ 2172 097c 1E       		.uleb128 0x1e
+ 2173 097d 8A030000 		.4byte	.LASF84
+ 2174 0981 8A030000 		.4byte	.LASF84
+ 2175 0985 05       		.byte	0x5
+ 2176 0986 31       		.byte	0x31
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 46
+
+
+ 2177 0987 1E       		.uleb128 0x1e
+ 2178 0988 00000000 		.4byte	.LASF85
+ 2179 098c 00000000 		.4byte	.LASF85
+ 2180 0990 10       		.byte	0x10
+ 2181 0991 25       		.byte	0x25
+ 2182 0992 1E       		.uleb128 0x1e
+ 2183 0993 E0010000 		.4byte	.LASF86
+ 2184 0997 E0010000 		.4byte	.LASF86
+ 2185 099b 05       		.byte	0x5
+ 2186 099c 34       		.byte	0x34
+ 2187 099d 1E       		.uleb128 0x1e
+ 2188 099e 6E000000 		.4byte	.LASF87
+ 2189 09a2 6E000000 		.4byte	.LASF87
+ 2190 09a6 10       		.byte	0x10
+ 2191 09a7 23       		.byte	0x23
+ 2192 09a8 1E       		.uleb128 0x1e
+ 2193 09a9 E8010000 		.4byte	.LASF88
+ 2194 09ad E8010000 		.4byte	.LASF88
+ 2195 09b1 0F       		.byte	0xf
+ 2196 09b2 73       		.byte	0x73
+ 2197 09b3 00       		.byte	0
+ 2198              		.section	.debug_abbrev,"",%progbits
+ 2199              	.Ldebug_abbrev0:
+ 2200 0000 01       		.uleb128 0x1
+ 2201 0001 11       		.uleb128 0x11
+ 2202 0002 01       		.byte	0x1
+ 2203 0003 25       		.uleb128 0x25
+ 2204 0004 0E       		.uleb128 0xe
+ 2205 0005 13       		.uleb128 0x13
+ 2206 0006 0B       		.uleb128 0xb
+ 2207 0007 03       		.uleb128 0x3
+ 2208 0008 0E       		.uleb128 0xe
+ 2209 0009 1B       		.uleb128 0x1b
+ 2210 000a 0E       		.uleb128 0xe
+ 2211 000b 55       		.uleb128 0x55
+ 2212 000c 17       		.uleb128 0x17
+ 2213 000d 11       		.uleb128 0x11
+ 2214 000e 01       		.uleb128 0x1
+ 2215 000f 10       		.uleb128 0x10
+ 2216 0010 17       		.uleb128 0x17
+ 2217 0011 00       		.byte	0
+ 2218 0012 00       		.byte	0
+ 2219 0013 02       		.uleb128 0x2
+ 2220 0014 24       		.uleb128 0x24
+ 2221 0015 00       		.byte	0
+ 2222 0016 0B       		.uleb128 0xb
+ 2223 0017 0B       		.uleb128 0xb
+ 2224 0018 3E       		.uleb128 0x3e
+ 2225 0019 0B       		.uleb128 0xb
+ 2226 001a 03       		.uleb128 0x3
+ 2227 001b 0E       		.uleb128 0xe
+ 2228 001c 00       		.byte	0
+ 2229 001d 00       		.byte	0
+ 2230 001e 03       		.uleb128 0x3
+ 2231 001f 16       		.uleb128 0x16
+ 2232 0020 00       		.byte	0
+ 2233 0021 03       		.uleb128 0x3
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 47
+
+
+ 2234 0022 0E       		.uleb128 0xe
+ 2235 0023 3A       		.uleb128 0x3a
+ 2236 0024 0B       		.uleb128 0xb
+ 2237 0025 3B       		.uleb128 0x3b
+ 2238 0026 0B       		.uleb128 0xb
+ 2239 0027 49       		.uleb128 0x49
+ 2240 0028 13       		.uleb128 0x13
+ 2241 0029 00       		.byte	0
+ 2242 002a 00       		.byte	0
+ 2243 002b 04       		.uleb128 0x4
+ 2244 002c 24       		.uleb128 0x24
+ 2245 002d 00       		.byte	0
+ 2246 002e 0B       		.uleb128 0xb
+ 2247 002f 0B       		.uleb128 0xb
+ 2248 0030 3E       		.uleb128 0x3e
+ 2249 0031 0B       		.uleb128 0xb
+ 2250 0032 03       		.uleb128 0x3
+ 2251 0033 08       		.uleb128 0x8
+ 2252 0034 00       		.byte	0
+ 2253 0035 00       		.byte	0
+ 2254 0036 05       		.uleb128 0x5
+ 2255 0037 16       		.uleb128 0x16
+ 2256 0038 00       		.byte	0
+ 2257 0039 03       		.uleb128 0x3
+ 2258 003a 0E       		.uleb128 0xe
+ 2259 003b 3A       		.uleb128 0x3a
+ 2260 003c 0B       		.uleb128 0xb
+ 2261 003d 3B       		.uleb128 0x3b
+ 2262 003e 05       		.uleb128 0x5
+ 2263 003f 49       		.uleb128 0x49
+ 2264 0040 13       		.uleb128 0x13
+ 2265 0041 00       		.byte	0
+ 2266 0042 00       		.byte	0
+ 2267 0043 06       		.uleb128 0x6
+ 2268 0044 35       		.uleb128 0x35
+ 2269 0045 00       		.byte	0
+ 2270 0046 49       		.uleb128 0x49
+ 2271 0047 13       		.uleb128 0x13
+ 2272 0048 00       		.byte	0
+ 2273 0049 00       		.byte	0
+ 2274 004a 07       		.uleb128 0x7
+ 2275 004b 04       		.uleb128 0x4
+ 2276 004c 01       		.byte	0x1
+ 2277 004d 03       		.uleb128 0x3
+ 2278 004e 0E       		.uleb128 0xe
+ 2279 004f 0B       		.uleb128 0xb
+ 2280 0050 0B       		.uleb128 0xb
+ 2281 0051 49       		.uleb128 0x49
+ 2282 0052 13       		.uleb128 0x13
+ 2283 0053 3A       		.uleb128 0x3a
+ 2284 0054 0B       		.uleb128 0xb
+ 2285 0055 3B       		.uleb128 0x3b
+ 2286 0056 0B       		.uleb128 0xb
+ 2287 0057 01       		.uleb128 0x1
+ 2288 0058 13       		.uleb128 0x13
+ 2289 0059 00       		.byte	0
+ 2290 005a 00       		.byte	0
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 48
+
+
+ 2291 005b 08       		.uleb128 0x8
+ 2292 005c 28       		.uleb128 0x28
+ 2293 005d 00       		.byte	0
+ 2294 005e 03       		.uleb128 0x3
+ 2295 005f 0E       		.uleb128 0xe
+ 2296 0060 1C       		.uleb128 0x1c
+ 2297 0061 0B       		.uleb128 0xb
+ 2298 0062 00       		.byte	0
+ 2299 0063 00       		.byte	0
+ 2300 0064 09       		.uleb128 0x9
+ 2301 0065 28       		.uleb128 0x28
+ 2302 0066 00       		.byte	0
+ 2303 0067 03       		.uleb128 0x3
+ 2304 0068 08       		.uleb128 0x8
+ 2305 0069 1C       		.uleb128 0x1c
+ 2306 006a 0B       		.uleb128 0xb
+ 2307 006b 00       		.byte	0
+ 2308 006c 00       		.byte	0
+ 2309 006d 0A       		.uleb128 0xa
+ 2310 006e 2E       		.uleb128 0x2e
+ 2311 006f 01       		.byte	0x1
+ 2312 0070 3F       		.uleb128 0x3f
+ 2313 0071 19       		.uleb128 0x19
+ 2314 0072 03       		.uleb128 0x3
+ 2315 0073 0E       		.uleb128 0xe
+ 2316 0074 3A       		.uleb128 0x3a
+ 2317 0075 0B       		.uleb128 0xb
+ 2318 0076 3B       		.uleb128 0x3b
+ 2319 0077 0B       		.uleb128 0xb
+ 2320 0078 27       		.uleb128 0x27
+ 2321 0079 19       		.uleb128 0x19
+ 2322 007a 11       		.uleb128 0x11
+ 2323 007b 01       		.uleb128 0x1
+ 2324 007c 12       		.uleb128 0x12
+ 2325 007d 06       		.uleb128 0x6
+ 2326 007e 40       		.uleb128 0x40
+ 2327 007f 18       		.uleb128 0x18
+ 2328 0080 9742     		.uleb128 0x2117
+ 2329 0082 19       		.uleb128 0x19
+ 2330 0083 01       		.uleb128 0x1
+ 2331 0084 13       		.uleb128 0x13
+ 2332 0085 00       		.byte	0
+ 2333 0086 00       		.byte	0
+ 2334 0087 0B       		.uleb128 0xb
+ 2335 0088 898201   		.uleb128 0x4109
+ 2336 008b 00       		.byte	0
+ 2337 008c 11       		.uleb128 0x11
+ 2338 008d 01       		.uleb128 0x1
+ 2339 008e 31       		.uleb128 0x31
+ 2340 008f 13       		.uleb128 0x13
+ 2341 0090 00       		.byte	0
+ 2342 0091 00       		.byte	0
+ 2343 0092 0C       		.uleb128 0xc
+ 2344 0093 05       		.uleb128 0x5
+ 2345 0094 00       		.byte	0
+ 2346 0095 03       		.uleb128 0x3
+ 2347 0096 0E       		.uleb128 0xe
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 49
+
+
+ 2348 0097 3A       		.uleb128 0x3a
+ 2349 0098 0B       		.uleb128 0xb
+ 2350 0099 3B       		.uleb128 0x3b
+ 2351 009a 0B       		.uleb128 0xb
+ 2352 009b 49       		.uleb128 0x49
+ 2353 009c 13       		.uleb128 0x13
+ 2354 009d 02       		.uleb128 0x2
+ 2355 009e 17       		.uleb128 0x17
+ 2356 009f 00       		.byte	0
+ 2357 00a0 00       		.byte	0
+ 2358 00a1 0D       		.uleb128 0xd
+ 2359 00a2 898201   		.uleb128 0x4109
+ 2360 00a5 01       		.byte	0x1
+ 2361 00a6 11       		.uleb128 0x11
+ 2362 00a7 01       		.uleb128 0x1
+ 2363 00a8 31       		.uleb128 0x31
+ 2364 00a9 13       		.uleb128 0x13
+ 2365 00aa 01       		.uleb128 0x1
+ 2366 00ab 13       		.uleb128 0x13
+ 2367 00ac 00       		.byte	0
+ 2368 00ad 00       		.byte	0
+ 2369 00ae 0E       		.uleb128 0xe
+ 2370 00af 8A8201   		.uleb128 0x410a
+ 2371 00b2 00       		.byte	0
+ 2372 00b3 02       		.uleb128 0x2
+ 2373 00b4 18       		.uleb128 0x18
+ 2374 00b5 9142     		.uleb128 0x2111
+ 2375 00b7 18       		.uleb128 0x18
+ 2376 00b8 00       		.byte	0
+ 2377 00b9 00       		.byte	0
+ 2378 00ba 0F       		.uleb128 0xf
+ 2379 00bb 34       		.uleb128 0x34
+ 2380 00bc 00       		.byte	0
+ 2381 00bd 03       		.uleb128 0x3
+ 2382 00be 0E       		.uleb128 0xe
+ 2383 00bf 3A       		.uleb128 0x3a
+ 2384 00c0 0B       		.uleb128 0xb
+ 2385 00c1 3B       		.uleb128 0x3b
+ 2386 00c2 0B       		.uleb128 0xb
+ 2387 00c3 49       		.uleb128 0x49
+ 2388 00c4 13       		.uleb128 0x13
+ 2389 00c5 02       		.uleb128 0x2
+ 2390 00c6 18       		.uleb128 0x18
+ 2391 00c7 00       		.byte	0
+ 2392 00c8 00       		.byte	0
+ 2393 00c9 10       		.uleb128 0x10
+ 2394 00ca 34       		.uleb128 0x34
+ 2395 00cb 00       		.byte	0
+ 2396 00cc 03       		.uleb128 0x3
+ 2397 00cd 08       		.uleb128 0x8
+ 2398 00ce 3A       		.uleb128 0x3a
+ 2399 00cf 0B       		.uleb128 0xb
+ 2400 00d0 3B       		.uleb128 0x3b
+ 2401 00d1 0B       		.uleb128 0xb
+ 2402 00d2 49       		.uleb128 0x49
+ 2403 00d3 13       		.uleb128 0x13
+ 2404 00d4 02       		.uleb128 0x2
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 50
+
+
+ 2405 00d5 18       		.uleb128 0x18
+ 2406 00d6 00       		.byte	0
+ 2407 00d7 00       		.byte	0
+ 2408 00d8 11       		.uleb128 0x11
+ 2409 00d9 0B       		.uleb128 0xb
+ 2410 00da 01       		.byte	0x1
+ 2411 00db 11       		.uleb128 0x11
+ 2412 00dc 01       		.uleb128 0x1
+ 2413 00dd 12       		.uleb128 0x12
+ 2414 00de 06       		.uleb128 0x6
+ 2415 00df 00       		.byte	0
+ 2416 00e0 00       		.byte	0
+ 2417 00e1 12       		.uleb128 0x12
+ 2418 00e2 34       		.uleb128 0x34
+ 2419 00e3 00       		.byte	0
+ 2420 00e4 03       		.uleb128 0x3
+ 2421 00e5 0E       		.uleb128 0xe
+ 2422 00e6 3A       		.uleb128 0x3a
+ 2423 00e7 0B       		.uleb128 0xb
+ 2424 00e8 3B       		.uleb128 0x3b
+ 2425 00e9 0B       		.uleb128 0xb
+ 2426 00ea 49       		.uleb128 0x49
+ 2427 00eb 13       		.uleb128 0x13
+ 2428 00ec 02       		.uleb128 0x2
+ 2429 00ed 17       		.uleb128 0x17
+ 2430 00ee 00       		.byte	0
+ 2431 00ef 00       		.byte	0
+ 2432 00f0 13       		.uleb128 0x13
+ 2433 00f1 0B       		.uleb128 0xb
+ 2434 00f2 01       		.byte	0x1
+ 2435 00f3 55       		.uleb128 0x55
+ 2436 00f4 17       		.uleb128 0x17
+ 2437 00f5 01       		.uleb128 0x1
+ 2438 00f6 13       		.uleb128 0x13
+ 2439 00f7 00       		.byte	0
+ 2440 00f8 00       		.byte	0
+ 2441 00f9 14       		.uleb128 0x14
+ 2442 00fa 34       		.uleb128 0x34
+ 2443 00fb 00       		.byte	0
+ 2444 00fc 03       		.uleb128 0x3
+ 2445 00fd 08       		.uleb128 0x8
+ 2446 00fe 3A       		.uleb128 0x3a
+ 2447 00ff 0B       		.uleb128 0xb
+ 2448 0100 3B       		.uleb128 0x3b
+ 2449 0101 0B       		.uleb128 0xb
+ 2450 0102 49       		.uleb128 0x49
+ 2451 0103 13       		.uleb128 0x13
+ 2452 0104 02       		.uleb128 0x2
+ 2453 0105 17       		.uleb128 0x17
+ 2454 0106 00       		.byte	0
+ 2455 0107 00       		.byte	0
+ 2456 0108 15       		.uleb128 0x15
+ 2457 0109 01       		.uleb128 0x1
+ 2458 010a 01       		.byte	0x1
+ 2459 010b 49       		.uleb128 0x49
+ 2460 010c 13       		.uleb128 0x13
+ 2461 010d 01       		.uleb128 0x1
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 51
+
+
+ 2462 010e 13       		.uleb128 0x13
+ 2463 010f 00       		.byte	0
+ 2464 0110 00       		.byte	0
+ 2465 0111 16       		.uleb128 0x16
+ 2466 0112 21       		.uleb128 0x21
+ 2467 0113 00       		.byte	0
+ 2468 0114 49       		.uleb128 0x49
+ 2469 0115 13       		.uleb128 0x13
+ 2470 0116 2F       		.uleb128 0x2f
+ 2471 0117 0B       		.uleb128 0xb
+ 2472 0118 00       		.byte	0
+ 2473 0119 00       		.byte	0
+ 2474 011a 17       		.uleb128 0x17
+ 2475 011b 2E       		.uleb128 0x2e
+ 2476 011c 01       		.byte	0x1
+ 2477 011d 3F       		.uleb128 0x3f
+ 2478 011e 19       		.uleb128 0x19
+ 2479 011f 03       		.uleb128 0x3
+ 2480 0120 0E       		.uleb128 0xe
+ 2481 0121 3A       		.uleb128 0x3a
+ 2482 0122 0B       		.uleb128 0xb
+ 2483 0123 3B       		.uleb128 0x3b
+ 2484 0124 0B       		.uleb128 0xb
+ 2485 0125 11       		.uleb128 0x11
+ 2486 0126 01       		.uleb128 0x1
+ 2487 0127 12       		.uleb128 0x12
+ 2488 0128 06       		.uleb128 0x6
+ 2489 0129 40       		.uleb128 0x40
+ 2490 012a 18       		.uleb128 0x18
+ 2491 012b 9742     		.uleb128 0x2117
+ 2492 012d 19       		.uleb128 0x19
+ 2493 012e 01       		.uleb128 0x1
+ 2494 012f 13       		.uleb128 0x13
+ 2495 0130 00       		.byte	0
+ 2496 0131 00       		.byte	0
+ 2497 0132 18       		.uleb128 0x18
+ 2498 0133 898201   		.uleb128 0x4109
+ 2499 0136 01       		.byte	0x1
+ 2500 0137 11       		.uleb128 0x11
+ 2501 0138 01       		.uleb128 0x1
+ 2502 0139 31       		.uleb128 0x31
+ 2503 013a 13       		.uleb128 0x13
+ 2504 013b 00       		.byte	0
+ 2505 013c 00       		.byte	0
+ 2506 013d 19       		.uleb128 0x19
+ 2507 013e 2E       		.uleb128 0x2e
+ 2508 013f 01       		.byte	0x1
+ 2509 0140 3F       		.uleb128 0x3f
+ 2510 0141 19       		.uleb128 0x19
+ 2511 0142 03       		.uleb128 0x3
+ 2512 0143 0E       		.uleb128 0xe
+ 2513 0144 3A       		.uleb128 0x3a
+ 2514 0145 0B       		.uleb128 0xb
+ 2515 0146 3B       		.uleb128 0x3b
+ 2516 0147 0B       		.uleb128 0xb
+ 2517 0148 27       		.uleb128 0x27
+ 2518 0149 19       		.uleb128 0x19
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 52
+
+
+ 2519 014a 49       		.uleb128 0x49
+ 2520 014b 13       		.uleb128 0x13
+ 2521 014c 8701     		.uleb128 0x87
+ 2522 014e 19       		.uleb128 0x19
+ 2523 014f 11       		.uleb128 0x11
+ 2524 0150 01       		.uleb128 0x1
+ 2525 0151 12       		.uleb128 0x12
+ 2526 0152 06       		.uleb128 0x6
+ 2527 0153 40       		.uleb128 0x40
+ 2528 0154 18       		.uleb128 0x18
+ 2529 0155 9742     		.uleb128 0x2117
+ 2530 0157 19       		.uleb128 0x19
+ 2531 0158 01       		.uleb128 0x1
+ 2532 0159 13       		.uleb128 0x13
+ 2533 015a 00       		.byte	0
+ 2534 015b 00       		.byte	0
+ 2535 015c 1A       		.uleb128 0x1a
+ 2536 015d 0B       		.uleb128 0xb
+ 2537 015e 01       		.byte	0x1
+ 2538 015f 11       		.uleb128 0x11
+ 2539 0160 01       		.uleb128 0x1
+ 2540 0161 12       		.uleb128 0x12
+ 2541 0162 06       		.uleb128 0x6
+ 2542 0163 01       		.uleb128 0x1
+ 2543 0164 13       		.uleb128 0x13
+ 2544 0165 00       		.byte	0
+ 2545 0166 00       		.byte	0
+ 2546 0167 1B       		.uleb128 0x1b
+ 2547 0168 34       		.uleb128 0x34
+ 2548 0169 00       		.byte	0
+ 2549 016a 03       		.uleb128 0x3
+ 2550 016b 0E       		.uleb128 0xe
+ 2551 016c 3A       		.uleb128 0x3a
+ 2552 016d 0B       		.uleb128 0xb
+ 2553 016e 3B       		.uleb128 0x3b
+ 2554 016f 05       		.uleb128 0x5
+ 2555 0170 49       		.uleb128 0x49
+ 2556 0171 13       		.uleb128 0x13
+ 2557 0172 3F       		.uleb128 0x3f
+ 2558 0173 19       		.uleb128 0x19
+ 2559 0174 3C       		.uleb128 0x3c
+ 2560 0175 19       		.uleb128 0x19
+ 2561 0176 00       		.byte	0
+ 2562 0177 00       		.byte	0
+ 2563 0178 1C       		.uleb128 0x1c
+ 2564 0179 34       		.uleb128 0x34
+ 2565 017a 00       		.byte	0
+ 2566 017b 03       		.uleb128 0x3
+ 2567 017c 0E       		.uleb128 0xe
+ 2568 017d 3A       		.uleb128 0x3a
+ 2569 017e 0B       		.uleb128 0xb
+ 2570 017f 3B       		.uleb128 0x3b
+ 2571 0180 0B       		.uleb128 0xb
+ 2572 0181 49       		.uleb128 0x49
+ 2573 0182 13       		.uleb128 0x13
+ 2574 0183 3F       		.uleb128 0x3f
+ 2575 0184 19       		.uleb128 0x19
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 53
+
+
+ 2576 0185 3C       		.uleb128 0x3c
+ 2577 0186 19       		.uleb128 0x19
+ 2578 0187 00       		.byte	0
+ 2579 0188 00       		.byte	0
+ 2580 0189 1D       		.uleb128 0x1d
+ 2581 018a 34       		.uleb128 0x34
+ 2582 018b 00       		.byte	0
+ 2583 018c 03       		.uleb128 0x3
+ 2584 018d 0E       		.uleb128 0xe
+ 2585 018e 3A       		.uleb128 0x3a
+ 2586 018f 0B       		.uleb128 0xb
+ 2587 0190 3B       		.uleb128 0x3b
+ 2588 0191 0B       		.uleb128 0xb
+ 2589 0192 49       		.uleb128 0x49
+ 2590 0193 13       		.uleb128 0x13
+ 2591 0194 3F       		.uleb128 0x3f
+ 2592 0195 19       		.uleb128 0x19
+ 2593 0196 02       		.uleb128 0x2
+ 2594 0197 18       		.uleb128 0x18
+ 2595 0198 00       		.byte	0
+ 2596 0199 00       		.byte	0
+ 2597 019a 1E       		.uleb128 0x1e
+ 2598 019b 2E       		.uleb128 0x2e
+ 2599 019c 00       		.byte	0
+ 2600 019d 3F       		.uleb128 0x3f
+ 2601 019e 19       		.uleb128 0x19
+ 2602 019f 3C       		.uleb128 0x3c
+ 2603 01a0 19       		.uleb128 0x19
+ 2604 01a1 6E       		.uleb128 0x6e
+ 2605 01a2 0E       		.uleb128 0xe
+ 2606 01a3 03       		.uleb128 0x3
+ 2607 01a4 0E       		.uleb128 0xe
+ 2608 01a5 3A       		.uleb128 0x3a
+ 2609 01a6 0B       		.uleb128 0xb
+ 2610 01a7 3B       		.uleb128 0x3b
+ 2611 01a8 0B       		.uleb128 0xb
+ 2612 01a9 00       		.byte	0
+ 2613 01aa 00       		.byte	0
+ 2614 01ab 00       		.byte	0
+ 2615              		.section	.debug_loc,"",%progbits
+ 2616              	.Ldebug_loc0:
+ 2617              	.LLST0:
+ 2618 0000 00000000 		.4byte	.LVL1
+ 2619 0004 13000000 		.4byte	.LVL2-1
+ 2620 0008 0100     		.2byte	0x1
+ 2621 000a 50       		.byte	0x50
+ 2622 000b 13000000 		.4byte	.LVL2-1
+ 2623 000f 3A000000 		.4byte	.LVL6
+ 2624 0013 0400     		.2byte	0x4
+ 2625 0015 F3       		.byte	0xf3
+ 2626 0016 01       		.uleb128 0x1
+ 2627 0017 50       		.byte	0x50
+ 2628 0018 9F       		.byte	0x9f
+ 2629 0019 3A000000 		.4byte	.LVL6
+ 2630 001d 44000000 		.4byte	.LFE64
+ 2631 0021 0100     		.2byte	0x1
+ 2632 0023 50       		.byte	0x50
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 54
+
+
+ 2633 0024 00000000 		.4byte	0
+ 2634 0028 00000000 		.4byte	0
+ 2635              	.LLST1:
+ 2636 002c 48000000 		.4byte	.LVL8
+ 2637 0030 4E000000 		.4byte	.LVL9
+ 2638 0034 0200     		.2byte	0x2
+ 2639 0036 30       		.byte	0x30
+ 2640 0037 9F       		.byte	0x9f
+ 2641 0038 4E000000 		.4byte	.LVL9
+ 2642 003c 52000000 		.4byte	.LVL10
+ 2643 0040 0100     		.2byte	0x1
+ 2644 0042 53       		.byte	0x53
+ 2645 0043 5C000000 		.4byte	.LVL11
+ 2646 0047 5E000000 		.4byte	.LVL12
+ 2647 004b 0100     		.2byte	0x1
+ 2648 004d 53       		.byte	0x53
+ 2649 004e 62000000 		.4byte	.LVL13
+ 2650 0052 72000000 		.4byte	.LVL16
+ 2651 0056 0100     		.2byte	0x1
+ 2652 0058 53       		.byte	0x53
+ 2653 0059 8E000000 		.4byte	.LVL17
+ 2654 005d 94000000 		.4byte	.LVL18
+ 2655 0061 0100     		.2byte	0x1
+ 2656 0063 53       		.byte	0x53
+ 2657 0064 00000000 		.4byte	0
+ 2658 0068 00000000 		.4byte	0
+ 2659              	.LLST2:
+ 2660 006c BA000000 		.4byte	.LVL20
+ 2661 0070 C0000000 		.4byte	.LVL21
+ 2662 0074 0200     		.2byte	0x2
+ 2663 0076 30       		.byte	0x30
+ 2664 0077 9F       		.byte	0x9f
+ 2665 0078 C0000000 		.4byte	.LVL21
+ 2666 007c C4000000 		.4byte	.LVL22
+ 2667 0080 0100     		.2byte	0x1
+ 2668 0082 53       		.byte	0x53
+ 2669 0083 CE000000 		.4byte	.LVL23
+ 2670 0087 D0000000 		.4byte	.LVL24
+ 2671 008b 0100     		.2byte	0x1
+ 2672 008d 53       		.byte	0x53
+ 2673 008e D4000000 		.4byte	.LVL25
+ 2674 0092 EF000000 		.4byte	.LVL28-1
+ 2675 0096 0100     		.2byte	0x1
+ 2676 0098 53       		.byte	0x53
+ 2677 0099 F6000000 		.4byte	.LVL29
+ 2678 009d FC000000 		.4byte	.LVL30
+ 2679 00a1 0100     		.2byte	0x1
+ 2680 00a3 53       		.byte	0x53
+ 2681 00a4 00000000 		.4byte	0
+ 2682 00a8 00000000 		.4byte	0
+ 2683              	.LLST3:
+ 2684 00ac 48000000 		.4byte	.LVL8
+ 2685 00b0 4E000000 		.4byte	.LVL9
+ 2686 00b4 0200     		.2byte	0x2
+ 2687 00b6 30       		.byte	0x30
+ 2688 00b7 9F       		.byte	0x9f
+ 2689 00b8 4E000000 		.4byte	.LVL9
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 55
+
+
+ 2690 00bc 6C000000 		.4byte	.LVL15
+ 2691 00c0 0100     		.2byte	0x1
+ 2692 00c2 52       		.byte	0x52
+ 2693 00c3 00000000 		.4byte	0
+ 2694 00c7 00000000 		.4byte	0
+ 2695              	.LLST4:
+ 2696 00cb BA000000 		.4byte	.LVL20
+ 2697 00cf C0000000 		.4byte	.LVL21
+ 2698 00d3 0200     		.2byte	0x2
+ 2699 00d5 30       		.byte	0x30
+ 2700 00d6 9F       		.byte	0x9f
+ 2701 00d7 C0000000 		.4byte	.LVL21
+ 2702 00db DE000000 		.4byte	.LVL27
+ 2703 00df 0100     		.2byte	0x1
+ 2704 00e1 52       		.byte	0x52
+ 2705 00e2 00000000 		.4byte	0
+ 2706 00e6 00000000 		.4byte	0
+ 2707              	.LLST5:
+ 2708 00ea BC000000 		.4byte	.LVL83
+ 2709 00ee C8000000 		.4byte	.LVL84
+ 2710 00f2 0100     		.2byte	0x1
+ 2711 00f4 50       		.byte	0x50
+ 2712 00f5 CE000000 		.4byte	.LVL86
+ 2713 00f9 DA000000 		.4byte	.LVL87
+ 2714 00fd 0100     		.2byte	0x1
+ 2715 00ff 50       		.byte	0x50
+ 2716 0100 E0000000 		.4byte	.LVL89
+ 2717 0104 EA000000 		.4byte	.LVL90
+ 2718 0108 0100     		.2byte	0x1
+ 2719 010a 50       		.byte	0x50
+ 2720 010b 00000000 		.4byte	0
+ 2721 010f 00000000 		.4byte	0
+ 2722              		.section	.debug_aranges,"",%progbits
+ 2723 0000 44000000 		.4byte	0x44
+ 2724 0004 0200     		.2byte	0x2
+ 2725 0006 00000000 		.4byte	.Ldebug_info0
+ 2726 000a 04       		.byte	0x4
+ 2727 000b 00       		.byte	0
+ 2728 000c 0000     		.2byte	0
+ 2729 000e 0000     		.2byte	0
+ 2730 0010 00000000 		.4byte	.LFB67
+ 2731 0014 38000000 		.4byte	.LFE67-.LFB67
+ 2732 0018 00000000 		.4byte	.LFB64
+ 2733 001c 44000000 		.4byte	.LFE64-.LFB64
+ 2734 0020 00000000 		.4byte	.LFB66
+ 2735 0024 2C010000 		.4byte	.LFE66-.LFB66
+ 2736 0028 00000000 		.4byte	.LFB65
+ 2737 002c 40000000 		.4byte	.LFE65-.LFB65
+ 2738 0030 00000000 		.4byte	.LFB68
+ 2739 0034 B4000000 		.4byte	.LFE68-.LFB68
+ 2740 0038 00000000 		.4byte	.LFB69
+ 2741 003c DC010000 		.4byte	.LFE69-.LFB69
+ 2742 0040 00000000 		.4byte	0
+ 2743 0044 00000000 		.4byte	0
+ 2744              		.section	.debug_ranges,"",%progbits
+ 2745              	.Ldebug_ranges0:
+ 2746 0000 48000000 		.4byte	.LBB3
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 56
+
+
+ 2747 0004 4A000000 		.4byte	.LBE3
+ 2748 0008 4C000000 		.4byte	.LBB4
+ 2749 000c 68000000 		.4byte	.LBE4
+ 2750 0010 00000000 		.4byte	0
+ 2751 0014 00000000 		.4byte	0
+ 2752 0018 BA000000 		.4byte	.LBB5
+ 2753 001c BC000000 		.4byte	.LBE5
+ 2754 0020 BE000000 		.4byte	.LBB6
+ 2755 0024 DA000000 		.4byte	.LBE6
+ 2756 0028 00000000 		.4byte	0
+ 2757 002c 00000000 		.4byte	0
+ 2758 0030 00000000 		.4byte	.LFB67
+ 2759 0034 38000000 		.4byte	.LFE67
+ 2760 0038 00000000 		.4byte	.LFB64
+ 2761 003c 44000000 		.4byte	.LFE64
+ 2762 0040 00000000 		.4byte	.LFB66
+ 2763 0044 2C010000 		.4byte	.LFE66
+ 2764 0048 00000000 		.4byte	.LFB65
+ 2765 004c 40000000 		.4byte	.LFE65
+ 2766 0050 00000000 		.4byte	.LFB68
+ 2767 0054 B4000000 		.4byte	.LFE68
+ 2768 0058 00000000 		.4byte	.LFB69
+ 2769 005c DC010000 		.4byte	.LFE69
+ 2770 0060 00000000 		.4byte	0
+ 2771 0064 00000000 		.4byte	0
+ 2772              		.section	.debug_line,"",%progbits
+ 2773              	.Ldebug_line0:
+ 2774 0000 BF030000 		.section	.debug_str,"MS",%progbits,1
+ 2774      02008E02 
+ 2774      00000201 
+ 2774      FB0E0D00 
+ 2774      01010101 
+ 2775              	.LASF85:
+ 2776 0000 6973725F 		.ascii	"isr_Timer_Disable\000"
+ 2776      54696D65 
+ 2776      725F4469 
+ 2776      7361626C 
+ 2776      6500
+ 2777              	.LASF52:
+ 2778 0012 4144435F 		.ascii	"ADC_GetResult32\000"
+ 2778      47657452 
+ 2778      6573756C 
+ 2778      74333200 
+ 2779              	.LASF54:
+ 2780 0022 414D7578 		.ascii	"AMux_1_FastSelect\000"
+ 2780      5F315F46 
+ 2780      61737453 
+ 2780      656C6563 
+ 2780      7400
+ 2781              	.LASF30:
+ 2782 0034 73657449 		.ascii	"setInput\000"
+ 2782      6E707574 
+ 2782      00
+ 2783              	.LASF24:
+ 2784 003d 41756469 		.ascii	"Audio\000"
+ 2784      6F00
+ 2785              	.LASF77:
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 57
+
+
+ 2786 0043 45455052 		.ascii	"EEPROM_ReadByte\000"
+ 2786      4F4D5F52 
+ 2786      65616442 
+ 2786      79746500 
+ 2787              	.LASF26:
+ 2788 0053 4C696768 		.ascii	"LightStates\000"
+ 2788      74537461 
+ 2788      74657300 
+ 2789              	.LASF20:
+ 2790 005f 73697A65 		.ascii	"sizetype\000"
+ 2790      74797065 
+ 2790      00
+ 2791              	.LASF29:
+ 2792 0068 41646349 		.ascii	"AdcIT\000"
+ 2792      5400
+ 2793              	.LASF87:
+ 2794 006e 6973725F 		.ascii	"isr_Timer_Enable\000"
+ 2794      54696D65 
+ 2794      725F456E 
+ 2794      61626C65 
+ 2794      00
+ 2795              	.LASF80:
+ 2796 007f 646F4379 		.ascii	"doCycle\000"
+ 2796      636C6500 
+ 2797              	.LASF32:
+ 2798 0087 73775F6D 		.ascii	"sw_modePrev\000"
+ 2798      6F646550 
+ 2798      72657600 
+ 2799              	.LASF93:
+ 2800 0093 6D61696E 		.ascii	"main\000"
+ 2800      00
+ 2801              	.LASF45:
+ 2802 0098 62756666 		.ascii	"buff\000"
+ 2802      00
+ 2803              	.LASF22:
+ 2804 009d 52656447 		.ascii	"RedGreenBlue\000"
+ 2804      7265656E 
+ 2804      426C7565 
+ 2804      00
+ 2805              	.LASF57:
+ 2806 00aa 53575F6D 		.ascii	"SW_mode_Read\000"
+ 2806      6F64655F 
+ 2806      52656164 
+ 2806      00
+ 2807              	.LASF81:
+ 2808 00b7 646F5265 		.ascii	"doRedGreenBlue\000"
+ 2808      64477265 
+ 2808      656E426C 
+ 2808      756500
+ 2809              	.LASF2:
+ 2810 00c6 73686F72 		.ascii	"short int\000"
+ 2810      7420696E 
+ 2810      7400
+ 2811              	.LASF78:
+ 2812 00d0 55415254 		.ascii	"UART_GetChar\000"
+ 2812      5F476574 
+ 2812      43686172 
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 58
+
+
+ 2812      00
+ 2813              	.LASF60:
+ 2814 00dd 55415254 		.ascii	"UART_PutString\000"
+ 2814      5F507574 
+ 2814      53747269 
+ 2814      6E6700
+ 2815              	.LASF12:
+ 2816 00ec 75696E74 		.ascii	"uint16\000"
+ 2816      313600
+ 2817              	.LASF13:
+ 2818 00f3 696E7431 		.ascii	"int16\000"
+ 2818      3600
+ 2819              	.LASF11:
+ 2820 00f9 75696E74 		.ascii	"uint8\000"
+ 2820      3800
+ 2821              	.LASF75:
+ 2822 00ff 50574D5F 		.ascii	"PWM_G_WriteCompare\000"
+ 2822      475F5772 
+ 2822      69746543 
+ 2822      6F6D7061 
+ 2822      726500
+ 2823              	.LASF33:
+ 2824 0112 73775F73 		.ascii	"sw_srcPrev\000"
+ 2824      72635072 
+ 2824      657600
+ 2825              	.LASF37:
+ 2826 011d 75706461 		.ascii	"updateState\000"
+ 2826      74655374 
+ 2826      61746500 
+ 2827              	.LASF14:
+ 2828 0129 666C6F61 		.ascii	"float\000"
+ 2828      7400
+ 2829              	.LASF6:
+ 2830 012f 6C6F6E67 		.ascii	"long long int\000"
+ 2830      206C6F6E 
+ 2830      6720696E 
+ 2830      7400
+ 2831              	.LASF67:
+ 2832 013d 4144435F 		.ascii	"ADC_Start\000"
+ 2832      53746172 
+ 2832      7400
+ 2833              	.LASF51:
+ 2834 0147 73726343 		.ascii	"srcChannel\000"
+ 2834      68616E6E 
+ 2834      656C00
+ 2835              	.LASF41:
+ 2836 0152 6D696C6C 		.ascii	"millis\000"
+ 2836      697300
+ 2837              	.LASF16:
+ 2838 0159 75696E74 		.ascii	"uint64\000"
+ 2838      363400
+ 2839              	.LASF48:
+ 2840 0160 6E657874 		.ascii	"nextState\000"
+ 2840      53746174 
+ 2840      6500
+ 2841              	.LASF31:
+ 2842 016a 54696D65 		.ascii	"TimerIT\000"
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 59
+
+
+ 2842      72495400 
+ 2843              	.LASF1:
+ 2844 0172 756E7369 		.ascii	"unsigned char\000"
+ 2844      676E6564 
+ 2844      20636861 
+ 2844      7200
+ 2845              	.LASF40:
+ 2846 0180 6D696C73 		.ascii	"milsec\000"
+ 2846      656300
+ 2847              	.LASF61:
+ 2848 0187 55415254 		.ascii	"UART_Start\000"
+ 2848      5F537461 
+ 2848      727400
+ 2849              	.LASF83:
+ 2850 0192 6973725F 		.ascii	"isr_ADC_Enable\000"
+ 2850      4144435F 
+ 2850      456E6162 
+ 2850      6C6500
+ 2851              	.LASF19:
+ 2852 01a1 6C6F6E67 		.ascii	"long double\000"
+ 2852      20646F75 
+ 2852      626C6500 
+ 2853              	.LASF28:
+ 2854 01ad 4A61636B 		.ascii	"Jack\000"
+ 2854      00
+ 2855              	.LASF71:
+ 2856 01b2 50574D5F 		.ascii	"PWM_B_WriteCompare\000"
+ 2856      425F5772 
+ 2856      69746543 
+ 2856      6F6D7061 
+ 2856      726500
+ 2857              	.LASF74:
+ 2858 01c5 50574D5F 		.ascii	"PWM_G_Start\000"
+ 2858      475F5374 
+ 2858      61727400 
+ 2859              	.LASF55:
+ 2860 01d1 4C45445F 		.ascii	"LED_JACK_Write\000"
+ 2860      4A41434B 
+ 2860      5F577269 
+ 2860      746500
+ 2861              	.LASF86:
+ 2862 01e0 646F4175 		.ascii	"doAudio\000"
+ 2862      64696F00 
+ 2863              	.LASF88:
+ 2864 01e8 55415254 		.ascii	"UART_GetRxBufferSize\000"
+ 2864      5F476574 
+ 2864      52784275 
+ 2864      66666572 
+ 2864      53697A65 
+ 2865              	.LASF0:
+ 2866 01fd 7369676E 		.ascii	"signed char\000"
+ 2866      65642063 
+ 2866      68617200 
+ 2867              	.LASF10:
+ 2868 0209 696E7433 		.ascii	"int32_t\000"
+ 2868      325F7400 
+ 2869              	.LASF7:
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 60
+
+
+ 2870 0211 6C6F6E67 		.ascii	"long long unsigned int\000"
+ 2870      206C6F6E 
+ 2870      6720756E 
+ 2870      7369676E 
+ 2870      65642069 
+ 2871              	.LASF34:
+ 2872 0228 73775F6D 		.ascii	"sw_modeNow\000"
+ 2872      6F64654E 
+ 2872      6F7700
+ 2873              	.LASF59:
+ 2874 0233 73707269 		.ascii	"sprintf\000"
+ 2874      6E746600 
+ 2875              	.LASF27:
+ 2876 023b 496E7075 		.ascii	"InputChannel\000"
+ 2876      74436861 
+ 2876      6E6E656C 
+ 2876      00
+ 2877              	.LASF8:
+ 2878 0248 756E7369 		.ascii	"unsigned int\000"
+ 2878      676E6564 
+ 2878      20696E74 
+ 2878      00
+ 2879              	.LASF5:
+ 2880 0255 6C6F6E67 		.ascii	"long unsigned int\000"
+ 2880      20756E73 
+ 2880      69676E65 
+ 2880      6420696E 
+ 2880      7400
+ 2881              	.LASF91:
+ 2882 0267 443A5C55 		.ascii	"D:\\Users\\Tarsoly\\Dokumentumok\\BME\\6. felev\\Mi"
+ 2882      73657273 
+ 2882      5C546172 
+ 2882      736F6C79 
+ 2882      5C446F6B 
+ 2883 0294 6B416C6B 		.ascii	"kAlk\\MikAlkHF\\LEDcontroller.cydsn\000"
+ 2883      5C4D696B 
+ 2883      416C6B48 
+ 2883      465C4C45 
+ 2883      44636F6E 
+ 2884              	.LASF23:
+ 2885 02b6 506F6C69 		.ascii	"Police\000"
+ 2885      636500
+ 2886              	.LASF35:
+ 2887 02bd 73775F73 		.ascii	"sw_srcNow\000"
+ 2887      72634E6F 
+ 2887      7700
+ 2888              	.LASF66:
+ 2889 02c7 414D7578 		.ascii	"AMux_1_Start\000"
+ 2889      5F315F53 
+ 2889      74617274 
+ 2889      00
+ 2890              	.LASF17:
+ 2891 02d4 63686172 		.ascii	"char\000"
+ 2891      00
+ 2892              	.LASF36:
+ 2893 02d9 5F426F6F 		.ascii	"_Bool\000"
+ 2893      6C00
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 61
+
+
+ 2894              	.LASF4:
+ 2895 02df 6C6F6E67 		.ascii	"long int\000"
+ 2895      20696E74 
+ 2895      00
+ 2896              	.LASF49:
+ 2897 02e8 73775F6D 		.ascii	"sw_modeStatus\000"
+ 2897      6F646553 
+ 2897      74617475 
+ 2897      7300
+ 2898              	.LASF73:
+ 2899 02f6 50574D5F 		.ascii	"PWM_R_WriteCompare\000"
+ 2899      525F5772 
+ 2899      69746543 
+ 2899      6F6D7061 
+ 2899      726500
+ 2900              	.LASF47:
+ 2901 0309 63757272 		.ascii	"currentState\000"
+ 2901      656E7453 
+ 2901      74617465 
+ 2901      00
+ 2902              	.LASF21:
+ 2903 0316 4379636C 		.ascii	"Cycle\000"
+ 2903      6500
+ 2904              	.LASF62:
+ 2905 031c 45455052 		.ascii	"EEPROM_Start\000"
+ 2905      4F4D5F53 
+ 2905      74617274 
+ 2905      00
+ 2906              	.LASF92:
+ 2907 0329 6368616E 		.ascii	"channel\000"
+ 2907      6E656C00 
+ 2908              	.LASF76:
+ 2909 0331 54696D65 		.ascii	"Timer_1_Start\000"
+ 2909      725F315F 
+ 2909      53746172 
+ 2909      7400
+ 2910              	.LASF56:
+ 2911 033f 4C45445F 		.ascii	"LED_MIC_Write\000"
+ 2911      4D49435F 
+ 2911      57726974 
+ 2911      6500
+ 2912              	.LASF3:
+ 2913 034d 73686F72 		.ascii	"short unsigned int\000"
+ 2913      7420756E 
+ 2913      7369676E 
+ 2913      65642069 
+ 2913      6E7400
+ 2914              	.LASF65:
+ 2915 0360 6F70616D 		.ascii	"opamp_1_Start\000"
+ 2915      705F315F 
+ 2915      53746172 
+ 2915      7400
+ 2916              	.LASF90:
+ 2917 036e 6D61696E 		.ascii	"main.c\000"
+ 2917      2E6300
+ 2918              	.LASF18:
+ 2919 0375 72656738 		.ascii	"reg8\000"
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 62
+
+
+ 2919      00
+ 2920              	.LASF68:
+ 2921 037a 6973725F 		.ascii	"isr_ADC_Disable\000"
+ 2921      4144435F 
+ 2921      44697361 
+ 2921      626C6500 
+ 2922              	.LASF84:
+ 2923 038a 73657443 		.ascii	"setColor\000"
+ 2923      6F6C6F72 
+ 2923      00
+ 2924              	.LASF63:
+ 2925 0393 6973725F 		.ascii	"isr_Timer_StartEx\000"
+ 2925      54696D65 
+ 2925      725F5374 
+ 2925      61727445 
+ 2925      7800
+ 2926              	.LASF70:
+ 2927 03a5 50574D5F 		.ascii	"PWM_B_Start\000"
+ 2927      425F5374 
+ 2927      61727400 
+ 2928              	.LASF82:
+ 2929 03b1 646F506F 		.ascii	"doPolice\000"
+ 2929      6C696365 
+ 2929      00
+ 2930              	.LASF9:
+ 2931 03ba 5F5F696E 		.ascii	"__int32_t\000"
+ 2931      7433325F 
+ 2931      7400
+ 2932              	.LASF64:
+ 2933 03c4 6973725F 		.ascii	"isr_ADC_StartEx\000"
+ 2933      4144435F 
+ 2933      53746172 
+ 2933      74457800 
+ 2934              	.LASF58:
+ 2935 03d4 53575F73 		.ascii	"SW_src_Read\000"
+ 2935      72635F52 
+ 2935      65616400 
+ 2936              	.LASF44:
+ 2937 03e0 656C656D 		.ascii	"elementIndex\000"
+ 2937      656E7449 
+ 2937      6E646578 
+ 2937      00
+ 2938              	.LASF69:
+ 2939 03ed 4144435F 		.ascii	"ADC_StartConvert\000"
+ 2939      53746172 
+ 2939      74436F6E 
+ 2939      76657274 
+ 2939      00
+ 2940              	.LASF46:
+ 2941 03fe 7465726D 		.ascii	"terminalEnabled\000"
+ 2941      696E616C 
+ 2941      456E6162 
+ 2941      6C656400 
+ 2942              	.LASF15:
+ 2943 040e 646F7562 		.ascii	"double\000"
+ 2943      6C6500
+ 2944              	.LASF25:
+ARM GAS  C:\Users\IZSOAN~1\AppData\Local\Temp\ccAKDw0U.s 			page 63
+
+
+ 2945 0415 53746174 		.ascii	"StateNo\000"
+ 2945      654E6F00 
+ 2946              	.LASF50:
+ 2947 041d 73775F73 		.ascii	"sw_srcStatus\000"
+ 2947      72635374 
+ 2947      61747573 
+ 2947      00
+ 2948              	.LASF39:
+ 2949 042a 49544D5F 		.ascii	"ITM_RxBuffer\000"
+ 2949      52784275 
+ 2949      66666572 
+ 2949      00
+ 2950              	.LASF89:
+ 2951 0437 474E5520 		.ascii	"GNU C11 5.4.1 20160609 (release) [ARM/embedded-5-br"
+ 2951      43313120 
+ 2951      352E342E 
+ 2951      31203230 
+ 2951      31363036 
+ 2952 046a 616E6368 		.ascii	"anch revision 237715] -mcpu=cortex-m3 -mthumb -g -O"
+ 2952      20726576 
+ 2952      6973696F 
+ 2952      6E203233 
+ 2952      37373135 
+ 2953 049d 67202D66 		.ascii	"g -ffunction-sections -ffat-lto-objects\000"
+ 2953      66756E63 
+ 2953      74696F6E 
+ 2953      2D736563 
+ 2953      74696F6E 
+ 2954              	.LASF79:
+ 2955 04c5 43794465 		.ascii	"CyDelay\000"
+ 2955      6C617900 
+ 2956              	.LASF72:
+ 2957 04cd 50574D5F 		.ascii	"PWM_R_Start\000"
+ 2957      525F5374 
+ 2957      61727400 
+ 2958              	.LASF43:
+ 2959 04d9 62756666 		.ascii	"buffIndex\000"
+ 2959      496E6465 
+ 2959      7800
+ 2960              	.LASF53:
+ 2961 04e3 45455052 		.ascii	"EEPROM_WriteByte\000"
+ 2961      4F4D5F57 
+ 2961      72697465 
+ 2961      42797465 
+ 2961      00
+ 2962              	.LASF42:
+ 2963 04f4 61756469 		.ascii	"audioBuff\000"
+ 2963      6F427566 
+ 2963      6600
+ 2964              	.LASF38:
+ 2965 04fe 696E6974 		.ascii	"init\000"
+ 2965      00
+ 2966              		.ident	"GCC: (GNU Tools for ARM Embedded Processors) 5.4.1 20160609 (release) [ARM/embedded-5-bran
